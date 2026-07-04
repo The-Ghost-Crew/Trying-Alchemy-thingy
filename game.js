@@ -9,6 +9,64 @@ const recipeList = [];     // full list: { a, b, result }
 const universe = new Set(BASE_ELEMENTS);
 const recipesByElement = new Map(); // element -> recipes it appears in as an ingredient (built once, not scanned each call)
 
+// ---------- Recipe loading / reloading ----------
+
+let recipesLoadStatus = { ok: null, time: null, count: 0, error: null };
+
+function resetRecipeData() {
+    // A plain re-fetch only ever ADDS entries. If a recipe is ever removed
+    // or renamed in recipes.js, an additive reload would leave the old,
+    // now-fake entry behind forever. Clearing everything first makes a
+    // reload an honest, exact mirror of whatever's currently in the file.
+    Object.keys(recipes).forEach(k => delete recipes[k]);
+    recipeList.length = 0;
+    recipesByElement.clear();
+    universe.clear();
+    BASE_ELEMENTS.forEach(el => universe.add(el));
+}
+
+async function loadRecipes() {
+    resetRecipeData();
+    try {
+        const res = await fetch("recipes.js", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const code = await res.text();
+        (0, eval)(code); // indirect eval — runs in global scope so recipe(...) reaches the real function
+        recipesLoadStatus = { ok: true, time: new Date(), count: recipeList.length, error: null };
+    } catch (e) {
+        recipesLoadStatus = { ok: false, time: new Date(), count: recipeList.length, error: e.message };
+        console.error("Could not load recipes.js:", e);
+    }
+}
+
+function updateRecipesStatusDisplay() {
+    const el = document.getElementById("recipes-status");
+    if (!el || !recipesLoadStatus.time) return;
+
+    const timeStr = recipesLoadStatus.time.toLocaleTimeString();
+
+    if (recipesLoadStatus.ok) {
+        el.textContent = `Loaded ${recipesLoadStatus.count} recipes, ${universe.size} total elements, at ${timeStr}.`;
+        el.className = "tree-hint";
+    } else {
+        el.textContent = `Failed to load at ${timeStr}: ${recipesLoadStatus.error}. Check the console, or that recipes.js has no syntax errors.`;
+        el.className = "tree-dead-note";
+    }
+}
+
+async function reloadRecipes() {
+    await loadRecipes();
+    updateProgressDisplays();
+    render();
+    treeDirty = true;
+    updateRecipesStatusDisplay();
+}
+
+function setupRecipeReload() {
+    const btn = document.getElementById("reload-recipes-btn");
+    btn?.addEventListener("click", () => reloadRecipes());
+}
+
 function indexRecipe(el, entry) {
     if (!recipesByElement.has(el)) recipesByElement.set(el, []);
     recipesByElement.get(el).push(entry);
@@ -775,16 +833,10 @@ window.addEventListener("load", async () => {
     setupResetControl();
     setupSoundToggle();
     setupDeadEndToggle();
+    setupRecipeReload();
 
-    // window's "load" event doesn't wait for the recipes.js fetch()
-    // happening in the HTML — that's a plain network request, not a
-    // tag-based resource load — so it has to be awaited explicitly here,
-    // otherwise render() could run before any recipes exist yet.
-    try {
-        await window.recipesReady;
-    } catch (e) {
-        console.error("Recipes failed to load:", e);
-    }
+    await loadRecipes();
+    updateRecipesStatusDisplay();
 
     updateProgressDisplays();
     render();
