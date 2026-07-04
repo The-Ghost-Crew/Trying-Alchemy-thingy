@@ -318,6 +318,7 @@
   .tree-card ul { margin: 0; padding-left: 18px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
 
   .tree-hint { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--gold); }
+  .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
   .tree-dead-note { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--red); }
 
   .about-block { margin-bottom: 20px; }
@@ -483,6 +484,13 @@
         <h2>Danger zone</h2>
         <p>This clears every element you've discovered and starts you back at air, water, earth, and fire. It can't be undone unless you've saved a backup code above.</p>
         <button id="reset-btn">Delete all progress</button>
+        <div id="reset-confirm" hidden>
+          <p class="tree-dead-note">Are you sure? This clears everything and can't be undone unless you've saved a backup code.</p>
+          <div class="backup-actions">
+            <button id="reset-confirm-btn">Yes, delete everything</button>
+            <button id="reset-cancel-btn">Cancel</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -493,4 +501,3 @@
 <script src="recipes.js"></script>
 </body>
 </html>
-
