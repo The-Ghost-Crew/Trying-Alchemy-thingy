@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <style>
   :root {
     --ink-bg: #14151f;
@@ -15,6 +16,8 @@
     --parchment: #ece3cc;
     --gold: #c9a227;
     --gold-soft: rgba(201, 162, 39, 0.35);
+    --red: #b5453f;
+    --red-soft: rgba(181, 69, 63, 0.35);
     --text: #e8e4d8;
     --text-muted: #8d92a8;
     --border: #383c52;
@@ -55,17 +58,9 @@
     font-size: 0.95rem;
   }
 
-  main {
-    max-width: 760px;
-    margin: 0 auto;
-  }
+  main { max-width: 760px; margin: 0 auto; }
 
-  /* Manuscript-tab style navigation */
-  .tabs {
-    display: flex;
-    gap: 4px;
-    padding: 0 8px;
-  }
+  .tabs { display: flex; gap: 4px; padding: 0 8px; }
 
   .tab-button {
     font-family: 'IBM Plex Mono', monospace;
@@ -93,7 +88,8 @@
 
   .tab-button:focus-visible,
   .element-tile:focus-visible,
-  #search:focus-visible {
+  #search:focus-visible,
+  button:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 2px;
   }
@@ -108,7 +104,6 @@
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
-  /* Progress seal — the signature element */
   .seal {
     width: 84px;
     height: 84px;
@@ -119,15 +114,12 @@
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    margin: 0 auto 20px;
+    margin: 0 auto 8px;
     font-family: 'IBM Plex Mono', monospace;
     color: var(--gold);
   }
 
-  .seal .progress-fraction {
-    font-size: 0.95rem;
-    font-weight: 500;
-  }
+  .seal .progress-fraction { font-size: 0.95rem; font-weight: 500; }
 
   .seal .seal-label {
     font-size: 0.55rem;
@@ -144,6 +136,7 @@
 
   @media (prefers-reduced-motion: no-preference) {
     .seal.complete { animation: seal-glow 2.4s ease-in-out infinite; }
+    .element-tile.just-found { animation: found-flash 1.6s ease-in-out 1; }
   }
 
   @keyframes seal-glow {
@@ -151,15 +144,28 @@
     50% { box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 8px rgba(233, 200, 95, 0.65); }
   }
 
+  @keyframes found-flash {
+    0% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.6); }
+    100% { box-shadow: 0 0 0 8px rgba(201, 162, 39, 0); }
+  }
+
+  .dead-end-count {
+    display: block;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
   #complete-banner {
     text-align: center;
     font-family: 'Cormorant Garamond', serif;
     font-size: 1.1rem;
     color: var(--gold);
-    margin: -8px 0 20px;
+    margin: -4px 0 20px;
   }
 
-  /* Search + element grid */
   #search {
     width: 100%;
     background: var(--panel);
@@ -174,12 +180,7 @@
 
   #search::placeholder { color: var(--text-muted); }
 
-  #elements {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 20px;
-  }
+  #elements { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 
   .element-tile {
     font-family: 'Inter', sans-serif;
@@ -190,7 +191,7 @@
     border-radius: 20px;
     padding: 8px 16px;
     cursor: pointer;
-    transition: border-color 0.15s ease, transform 0.1s ease;
+    transition: border-color 0.15s ease;
   }
 
   .element-tile:hover { border-color: var(--gold-soft); }
@@ -199,6 +200,17 @@
     border-color: var(--gold);
     color: var(--gold);
     background: rgba(201, 162, 39, 0.1);
+  }
+
+  .element-tile.dead-end {
+    border-color: var(--red-soft);
+    color: #e0a8a4;
+  }
+
+  .element-tile.dead-end.selected {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(181, 69, 63, 0.12);
   }
 
   #result {
@@ -211,6 +223,63 @@
   }
 
   /* Family tree */
+  #tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+
+  #tree-header .progress-fraction {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--gold);
+  }
+
+  .tree-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 16px;
+  }
+
+  .view-toggle, .about-block button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+
+  .view-toggle.active { color: var(--gold); border-color: var(--gold-soft); }
+
+  #tree-graph-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    touch-action: none;
+  }
+
+  .tree-legend {
+    display: flex;
+    gap: 16px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .tree-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .legend-dot.gold { background: var(--gold); }
+  .legend-dot.red { background: var(--red); }
+
   .tree-card {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -219,6 +288,8 @@
     padding: 14px 16px;
     margin-bottom: 10px;
   }
+
+  .tree-card.dead-end-card { border-left-color: var(--red-soft); }
 
   .tree-card h3 {
     font-family: 'Cormorant Garamond', serif;
@@ -257,22 +328,15 @@
     color: var(--gold);
   }
 
-  #tree-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-  }
-
-  #tree-header .progress-fraction {
-    font-family: 'IBM Plex Mono', monospace;
-    color: var(--gold);
+  .tree-dead-note {
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--red);
   }
 
   /* About tab */
-  .about-block {
-    margin-bottom: 20px;
-  }
+  .about-block { margin-bottom: 20px; }
 
   .about-block h2 {
     font-family: 'Cormorant Garamond', serif;
@@ -297,6 +361,29 @@
     font-size: 0.85rem;
     color: var(--parchment);
   }
+
+  .backup-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+
+  #backup-code, #import-input {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    resize: vertical;
+    margin-top: 6px;
+  }
+
+  #import-row { margin-top: 10px; }
+
+  #backup-status {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--gold);
+  }
 </style>
 </head>
 <body>
@@ -320,6 +407,7 @@
         <span class="progress-fraction">0 / 0</span>
         <span class="seal-label">Found</span>
       </div>
+      <span class="dead-end-count">0 dead ends found</span>
       <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
 
       <input id="search" type="text" placeholder="Search your discovered elements…">
@@ -332,13 +420,27 @@
         <span>Elements you've uncovered so far</span>
         <span class="progress-fraction">0 / 0</span>
       </div>
-      <div id="tree"></div>
+      <span class="dead-end-count">0 dead ends found</span>
+
+      <div class="tree-controls">
+        <button class="view-toggle active" data-view="graph">Graph</button>
+        <button class="view-toggle" data-view="list">List</button>
+      </div>
+
+      <div class="tree-legend">
+        <span><span class="legend-dot gold"></span>Can still combine</span>
+        <span><span class="legend-dot red"></span>Dead end</span>
+      </div>
+
+      <div id="tree-graph-wrap"></div>
+      <div id="tree-detail" class="tree-card" hidden></div>
+      <div id="tree" hidden></div>
     </section>
 
     <section id="tab-about" class="tab-panel">
       <div class="about-block">
         <h2>How progress is saved</h2>
-        <p>Your discovered elements are saved in this browser using <code>localStorage</code> — a small storage space each website gets in your browser. There's no account and no server; the data lives only on this device, in this browser.</p>
+        <p>Your discovered elements are saved in this browser using <code>localStorage</code>, a small storage space each website gets in your browser. There's no account and no server; the data lives only on this device, in this browser.</p>
       </div>
 
       <div class="about-block">
@@ -347,13 +449,35 @@
       </div>
 
       <div class="about-block">
-        <h2>Why it's built this way</h2>
-        <p>A shared save file that "only the computer can read" isn't actually possible — any code that runs in your browser can be read by anyone using the browser's developer tools, so it wouldn't add real protection. Real accounts with real security would need a server and password hashing, which is a bigger project than this prototype currently needs.</p>
+        <h2>Back up or transfer progress</h2>
+        <p>Generate a backup code for your current progress, then paste it into this page on another browser or device to bring your elements with you. Importing only adds elements — it never removes anything you've already found.</p>
+        <div class="backup-actions">
+          <button id="export-btn">Copy backup code</button>
+          <button id="import-toggle-btn">Paste a backup code</button>
+        </div>
+        <textarea id="backup-code" rows="2" readonly hidden></textarea>
+        <div id="import-row" hidden>
+          <textarea id="import-input" rows="2" placeholder="Paste your backup code here"></textarea>
+          <div class="backup-actions">
+            <button id="import-confirm-btn">Load this code</button>
+          </div>
+        </div>
+        <p id="backup-status" hidden></p>
       </div>
 
       <div class="about-block">
-        <h2>The 100% counter</h2>
+        <h2>Why it's built this way</h2>
+        <p>A shared save file that "only the computer can read" isn't actually possible — any code that runs in your browser can be read by anyone using developer tools, so it wouldn't add real protection. Real accounts would need a server and password hashing, which is a bigger project than this prototype currently needs.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>The completion counter</h2>
         <p>The fraction on the Elements and Family Tree tabs counts every element currently defined in <code>recipes.js</code>. When new elements are added in an update, the total goes up — so it's possible to go from 100% back down after an update. That's expected, not a bug.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>Dead ends</h2>
+        <p>An element is marked as a dead end only when it can never be combined with anything to produce something new — permanently, based on every recipe that exists. It is not based on what you personally have discovered yet, since an element that looks unusable today might just be waiting on a partner you haven't found.</p>
       </div>
     </section>
 
