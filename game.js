@@ -234,7 +234,7 @@ function makeElementTile(element) {
             discovered.add(result);
             lastDiscovered = result;
             saveProgress();
-            renderTree();
+            treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
             playDiscoverySound();
         } else if (!result) {
             playNothingSound();
@@ -401,6 +401,14 @@ function renderTreeList() {
 // ---------- Family tree: node graph ----------
 
 let simulation = null;
+let treeDirty = true; // tree is rebuilt lazily, only when the tab is actually opened
+
+function ensureTreeUpToDate() {
+    if (treeDirty) {
+        renderTree();
+        treeDirty = false;
+    }
+}
 
 function buildGraphData() {
     const discoveredValid = [...discovered].filter(el => universe.has(el));
@@ -437,6 +445,15 @@ function buildGraphData() {
 function renderGraph() {
     const wrap = document.getElementById("tree-graph-wrap");
     if (!wrap || typeof d3 === "undefined") return;
+
+    // The previous simulation was never stopped here, so every rebuild
+    // left the old one running in the background on detached nodes,
+    // forever. Over a long session that's several simulations all
+    // crunching physics on the same main thread at once.
+    if (simulation) {
+        simulation.stop();
+        simulation = null;
+    }
 
     wrap.innerHTML = "";
 
@@ -504,17 +521,32 @@ function renderGraph() {
         .attr("dy", d => -radius(d) - 4)
         .style("pointer-events", "none");
 
-    simulation = d3.forceSimulation(nodes)
+    const paint = () => {
+        link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+        node.attr("cx", d => d.x).attr("cy", d => d.y);
+        label.attr("x", d => d.x).attr("y", d => d.y);
+    };
+
+    const sim = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(links).id(d => d.id).distance(46).strength(0.7))
         .force("charge", d3.forceManyBody().strength(-90))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .force("collide", d3.forceCollide().radius(d => radius(d) + 6))
-        .on("tick", () => {
-            link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
-            node.attr("cx", d => d.x).attr("cy", d => d.y);
-            label.attr("x", d => d.x).attr("y", d => d.y);
-        });
+        .stop(); // don't let it auto-run on a per-frame timer
+
+    // Compute the settled layout synchronously in one burst instead of
+    // animating ~300 frames of DOM writes. For 150+ nodes this was the
+    // single biggest cost of opening this tab.
+    const ITERATIONS = 200;
+    for (let i = 0; i < ITERATIONS; i++) sim.tick();
+    paint();
+
+    // Dragging still re-heats the simulation and repaints live — that's a
+    // single-node, user-driven cost, not a full-graph one.
+    sim.on("tick", paint);
+
+    simulation = sim;
 }
 
 function renderTree() {
@@ -528,13 +560,13 @@ function setViewMode(mode) {
     const list = document.getElementById("tree");
     const isGraph = mode === "graph";
 
+    ensureTreeUpToDate();
+
     if (graphWrap) graphWrap.hidden = !isGraph;
     if (detail) detail.hidden = true;
     if (list) list.hidden = isGraph;
 
     document.querySelectorAll(".view-toggle").forEach(btn => btn.classList.toggle("active", btn.dataset.view === mode));
-
-    if (isGraph) renderGraph();
 }
 
 // ---------- Backup / transfer ----------
@@ -596,7 +628,7 @@ function setupBackupControls() {
             saveProgress();
             updateProgressDisplays();
             render();
-            renderTree();
+            treeDirty = true;
             showStatus(added > 0 ? `Added ${added} element(s) from the backup code.` : "Nothing new in that code — you already had it all.");
         } catch {
             showStatus("That code couldn't be read. Double-check you copied it in full.");
@@ -628,7 +660,7 @@ function setupResetControl() {
         resetProgress();
         updateProgressDisplays();
         render();
-        renderTree();
+        treeDirty = true;
 
         confirmBox.hidden = true;
         resetBtn.hidden = false;
@@ -650,7 +682,7 @@ function setupTabs() {
             panels.forEach(p => p.classList.remove("active"));
             btn.classList.add("active");
             document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-            if (btn.dataset.tab === "tree") renderGraph();
+            if (btn.dataset.tab === "tree") ensureTreeUpToDate();
         });
     });
 
@@ -677,7 +709,10 @@ window.addEventListener("load", () => {
     setupDeadEndToggle();
     updateProgressDisplays();
     render();
-    renderTree();
+    // Tree is intentionally NOT built here — it's the hidden tab on load,
+    // so building a 150+ node force graph before anyone's asked to see it
+    // was pure wasted startup work. It builds lazily on first visit via
+    // ensureTreeUpToDate().
 });
 
 window.addEventListener("resize", () => {
