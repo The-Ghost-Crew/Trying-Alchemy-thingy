@@ -7,6 +7,12 @@ const discovered = new Set(BASE_ELEMENTS);
 const recipes = {};        // lookup: "a|b" -> result
 const recipeList = [];     // full list: { a, b, result }
 const universe = new Set(BASE_ELEMENTS);
+const recipesByElement = new Map(); // element -> recipes it appears in as an ingredient (built once, not scanned each call)
+
+function indexRecipe(el, entry) {
+    if (!recipesByElement.has(el)) recipesByElement.set(el, []);
+    recipesByElement.get(el).push(entry);
+}
 
 function recipe(a, b, result) {
     const aLower = a.toLowerCase();
@@ -24,7 +30,11 @@ function recipe(a, b, result) {
     }
 
     recipes[key] = resultLower;
-    recipeList.push({ a: aLower, b: bLower, result: resultLower });
+    const entry = { a: aLower, b: bLower, result: resultLower };
+    recipeList.push(entry);
+
+    indexRecipe(aLower, entry);
+    if (bLower !== aLower) indexRecipe(bLower, entry);
 
     universe.add(aLower);
     universe.add(bLower);
@@ -36,8 +46,12 @@ function combine(a, b) {
     return recipes[key] || null;
 }
 
+// Was previously an O(recipeList.length) scan on every call. isExhausted()
+// alone calls this multiple times per element per render, so at ~200
+// recipes and ~150 discovered elements that added up to tens of thousands
+// of redundant array scans per tap. Now it's a single Map lookup.
 function recipesInvolving(el) {
-    return recipeList.filter(r => r.a === el || r.b === el);
+    return recipesByElement.get(el) || [];
 }
 
 // An element is a dead end once EVERY recipe it appears in as an
@@ -81,6 +95,10 @@ function resetProgress() {
     BASE_ELEMENTS.forEach(el => discovered.add(el));
     first = null;
     lastDiscovered = null;
+    if (lastDiscoveredTimer) {
+        clearTimeout(lastDiscoveredTimer);
+        lastDiscoveredTimer = null;
+    }
     try {
         localStorage.removeItem(STORAGE_KEY);
     } catch (e) {
@@ -182,6 +200,21 @@ function setupSoundToggle() {
 
 let first = null;
 let lastDiscovered = null;
+let lastDiscoveredTimer = null;
+
+function markJustDiscovered(element) {
+    lastDiscovered = element;
+    if (lastDiscoveredTimer) clearTimeout(lastDiscoveredTimer);
+    // Without this, lastDiscovered stays set forever, and since render()
+    // rebuilds every tile from scratch (even just from typing in search),
+    // that same tile would replay its "just found" flash animation on
+    // every single re-render, not just once.
+    lastDiscoveredTimer = setTimeout(() => {
+        lastDiscovered = null;
+        lastDiscoveredTimer = null;
+        render();
+    }, 2000);
+}
 
 function updateProgressDisplays() {
     const count = validDiscoveredCount();
@@ -207,6 +240,7 @@ function makeElementTile(element) {
     const button = document.createElement("button");
     button.textContent = element;
     button.className = "element-tile";
+    button.setAttribute("aria-pressed", element === first ? "true" : "false");
     if (element === first) button.classList.add("selected");
     if (isExhausted(element)) button.classList.add("dead-end");
     if (element === lastDiscovered) button.classList.add("just-found");
@@ -232,7 +266,7 @@ function makeElementTile(element) {
 
         if (result && !discovered.has(result)) {
             discovered.add(result);
-            lastDiscovered = result;
+            markJustDiscovered(result);
             saveProgress();
             treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
             playDiscoverySound();
@@ -402,12 +436,46 @@ function renderTreeList() {
 
 let simulation = null;
 let treeDirty = true; // tree is rebuilt lazily, only when the tab is actually opened
+let d3LoadPromise = null;
+
+// D3 is a ~280KB library only needed for the graph view. Loading it
+// unconditionally on every page visit charged that cost even to people
+// who never open the Family Tree tab. Fetch it once, on demand, the
+// first time it's actually needed, and reuse the same promise after that.
+function loadD3() {
+    if (window.d3) return Promise.resolve();
+    if (d3LoadPromise) return d3LoadPromise;
+
+    d3LoadPromise = new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Could not load the graph library"));
+        document.head.appendChild(script);
+    });
+
+    return d3LoadPromise;
+}
 
 function ensureTreeUpToDate() {
-    if (treeDirty) {
-        renderTree();
-        treeDirty = false;
-    }
+    if (!treeDirty) return;
+
+    const wrap = document.getElementById("tree-graph-wrap");
+    if (wrap && !window.d3) wrap.textContent = "Loading graph…";
+
+    loadD3()
+        .then(() => {
+            renderTree();
+            treeDirty = false;
+        })
+        .catch(err => {
+            console.warn(err);
+            // Graph library failed to load (offline, blocked CDN, etc).
+            // Fall back to the list view content, which needs no library.
+            if (wrap) wrap.textContent = "Graph view unavailable right now — try the List view instead.";
+            renderTreeList();
+            treeDirty = false;
+        });
 }
 
 function buildGraphData() {
