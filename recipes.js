@@ -94,3 +94,4 @@ recipe("fire", "planet", "star");
 recipe("country", "lake", "canada");
 recipe("human", "canada", "canadian");
 recipe("land", "land", "continent");
+
