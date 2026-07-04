@@ -54,3 +54,4 @@ recipe("mist", "mist", "fog");
 recipe("fog", "fog", "cloud");
 recipe("steam", "fire", "smoke");
 recipe("soil", "house", "garden");
+recipe("owo", "owo", "owo");
