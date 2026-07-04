@@ -221,12 +221,13 @@ recipe("space", "glass", "telescope");
 recipe("tree", "tool", "wood");
 revipe("cloud", "energy", "storm");
 recipe("tool", "woodpecker", "hammer");
-
 recipe("hammer", "boulder", "ore");
 recipe("wood", "earth", "plow");
 recipe("plow", "earth", "field");
 recipe("field", "human", "farmer");
-
+recipe("human", "wood", "tool");
+recipe("human", "rock", "tool");
+recipe("human", "stone", "tool");
 recipe("farmer", "animal", "livestock");
 recipe("livestock", "grass", "cow");
 recipe("livestock", "cloud", "sheep");
