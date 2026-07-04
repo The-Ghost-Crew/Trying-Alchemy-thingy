@@ -376,3 +376,4 @@ recipe("tree", "beach", "palm");
 recipe("tree", "island", "palm");
 recipe("star", "star", "asterism");
 recipe("asterism", "asterism", "constellation");
+recipe("human", "cold", "illness");
