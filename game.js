@@ -1,14 +1,12 @@
 const STORAGE_KEY = "alchemy_discovered_elements";
 
-// Base elements every player starts with.
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
 const discovered = new Set(BASE_ELEMENTS);
 
 const recipes = {};        // lookup: "a|b" -> result
-const recipeList = [];     // full list: { a, b, result } — used for tree + hints + dead-end check
-const universe = new Set(BASE_ELEMENTS);     // every element that exists in recipes.js
-const combinableSet = new Set();             // elements that appear as an ingredient somewhere
+const recipeList = [];     // full list: { a, b, result }
+const universe = new Set(BASE_ELEMENTS);
 
 function recipe(a, b, result) {
     const aLower = a.toLowerCase();
@@ -16,10 +14,7 @@ function recipe(a, b, result) {
     const resultLower = result.toLowerCase();
 
     const key = [aLower, bLower].sort().join("|");
-
-    if (recipes[key]) {
-        throw new Error(`Duplicate combo: ${key}`);
-    }
+    if (recipes[key]) throw new Error(`Duplicate combo: ${key}`);
 
     recipes[key] = resultLower;
     recipeList.push({ a: aLower, b: bLower, result: resultLower });
@@ -27,27 +22,29 @@ function recipe(a, b, result) {
     universe.add(aLower);
     universe.add(bLower);
     universe.add(resultLower);
-
-    combinableSet.add(aLower);
-    combinableSet.add(bLower);
 }
 
 function combine(a, b) {
-    const key = [a, b]
-        .map(x => x.toLowerCase())
-        .sort()
-        .join("|");
-
+    const key = [a, b].map(x => x.toLowerCase()).sort().join("|");
     return recipes[key] || null;
 }
 
-// A "dead end" is permanent: it never appears as an ingredient in ANY
-// recipe in recipes.js, so no future pairing with it will ever produce
-// anything new. This is deliberately NOT based on what you currently
-// have discovered — that would flag elements as dead just because you
-// haven't found their partner yet, which would be actively misleading.
-function isDeadEnd(el) {
-    return universe.has(el) && !combinableSet.has(el);
+function recipesInvolving(el) {
+    return recipeList.filter(r => r.a === el || r.b === el);
+}
+
+// An element is a dead end once EVERY recipe it appears in as an
+// ingredient already leads to a result you've discovered — meaning it
+// cannot possibly hand you anything new from here on, regardless of
+// which partner element you eventually pick up. An element with zero
+// recipes at all counts too (vacuously true), covering elements that
+// were never combinable in the first place. This is discovery-dependent
+// on purpose: an element can go from active to dead end the moment its
+// last reachable output gets discovered, even by an unrelated combo.
+function isExhausted(el) {
+    if (!universe.has(el)) return false;
+    const relevant = recipesInvolving(el);
+    return relevant.every(r => discovered.has(r.result));
 }
 
 function saveProgress() {
@@ -62,38 +59,42 @@ function loadProgress() {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (!saved) return;
-
         const parsed = JSON.parse(saved);
         if (!Array.isArray(parsed)) return;
-
-        parsed.forEach(element => {
-            if (typeof element === "string") {
-                discovered.add(element.toLowerCase());
-            }
+        parsed.forEach(el => {
+            if (typeof el === "string") discovered.add(el.toLowerCase());
         });
     } catch (e) {
         console.warn("Could not load saved progress:", e);
     }
 }
 
+function resetProgress() {
+    discovered.clear();
+    BASE_ELEMENTS.forEach(el => discovered.add(el));
+    first = null;
+    lastDiscovered = null;
+    try {
+        localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+        console.warn("Could not clear saved progress:", e);
+    }
+}
+
 function validDiscoveredCount() {
     let count = 0;
-    discovered.forEach(el => {
-        if (universe.has(el)) count++;
-    });
+    discovered.forEach(el => { if (universe.has(el)) count++; });
     return count;
 }
 
 function deadEndDiscoveredCount() {
     let count = 0;
-    discovered.forEach(el => {
-        if (isDeadEnd(el)) count++;
-    });
+    discovered.forEach(el => { if (isExhausted(el)) count++; });
     return count;
 }
 
 let first = null;
-let lastDiscovered = null; // most recent new element, for the "new" highlight
+let lastDiscovered = null;
 
 function updateProgressDisplays() {
     const count = validDiscoveredCount();
@@ -101,13 +102,10 @@ function updateProgressDisplays() {
     const deadEnds = deadEndDiscoveredCount();
     const complete = count >= total && total > 0;
 
-    document.querySelectorAll(".progress-fraction").forEach(node => {
-        node.textContent = `${count} / ${total}`;
-    });
-
-    document.querySelectorAll(".dead-end-count").forEach(node => {
-        node.textContent = `${deadEnds} dead end${deadEnds === 1 ? "" : "s"} found`;
-    });
+    document.querySelectorAll(".progress-fraction").forEach(n => (n.textContent = `${count} / ${total}`));
+    document.querySelectorAll(".dead-end-count").forEach(
+        n => (n.textContent = `${deadEnds} dead end${deadEnds === 1 ? "" : "s"} found`)
+    );
 
     const seal = document.getElementById("progress-seal");
     if (seal) seal.classList.toggle("complete", complete);
@@ -116,54 +114,149 @@ function updateProgressDisplays() {
     if (banner) banner.hidden = !complete;
 }
 
-function render() {
-    const box = document.getElementById("elements");
-    if (!box) return;
+// ---------- Elements tab ----------
 
-    box.innerHTML = "";
+function makeElementTile(element) {
+    const button = document.createElement("button");
+    button.textContent = element;
+    button.className = "element-tile";
+    if (element === first) button.classList.add("selected");
+    if (isExhausted(element)) button.classList.add("dead-end");
+    if (element === lastDiscovered) button.classList.add("just-found");
+
+    button.onclick = () => {
+        if (first === null) {
+            first = element;
+            render();
+            return;
+        }
+
+        const chosenFirst = first;
+        const result = combine(chosenFirst, element);
+
+        document.getElementById("result").textContent = result
+            ? `${chosenFirst} + ${element} = ${result}`
+            : `${chosenFirst} + ${element} = nothing happens`;
+
+        if (result && !discovered.has(result)) {
+            discovered.add(result);
+            lastDiscovered = result;
+            saveProgress();
+            renderTree();
+        }
+
+        first = null;
+        updateProgressDisplays();
+        render();
+    };
+
+    return button;
+}
+
+function render() {
+    const activeBox = document.getElementById("elements");
+    const deadBox = document.getElementById("dead-end-elements");
+    const deadSection = document.getElementById("dead-end-section");
+    if (!activeBox || !deadBox) return;
+
+    activeBox.innerHTML = "";
+    deadBox.innerHTML = "";
 
     const query = (document.getElementById("search")?.value || "").toLowerCase().trim();
+
+    const filtered = [...discovered]
+        .filter(el => universe.has(el))
+        .sort()
+        .filter(el => el.includes(query));
+
+    const active = filtered.filter(el => !isExhausted(el));
+    const dead = filtered.filter(el => isExhausted(el));
+
+    active.forEach(el => activeBox.appendChild(makeElementTile(el)));
+    dead.forEach(el => deadBox.appendChild(makeElementTile(el)));
+
+    if (deadSection) deadSection.hidden = dead.length === 0;
+}
+
+// ---------- Shared detail content (used by graph panel AND list view) ----------
+
+function buildDetailFragment(element) {
+    const frag = document.createDocumentFragment();
+
+    const heading = document.createElement("h3");
+    heading.textContent = element;
+    frag.appendChild(heading);
+
+    const origin = recipeList.find(r => r.result === element);
+    const originLine = document.createElement("p");
+    originLine.className = "tree-origin";
+    originLine.textContent = origin ? `Made from ${origin.a} + ${origin.b}` : "Starting element";
+    frag.appendChild(originLine);
+
+    const usedIn = recipeList.filter(r => (r.a === element || r.b === element) && discovered.has(r.result));
+    if (usedIn.length > 0) {
+        const usedHeading = document.createElement("p");
+        usedHeading.className = "tree-used-label";
+        usedHeading.textContent = "Combines into:";
+        frag.appendChild(usedHeading);
+
+        const list = document.createElement("ul");
+        usedIn.forEach(r => {
+            const partner = r.a === element ? r.b : r.a;
+            const li = document.createElement("li");
+            li.textContent = `+ ${partner} → ${r.result}`;
+            list.appendChild(li);
+        });
+        frag.appendChild(list);
+    }
+
+    if (isExhausted(element)) {
+        const deadNote = document.createElement("p");
+        deadNote.className = "tree-dead-note";
+        deadNote.textContent = "Dead end — no remaining combination for this element will produce anything new.";
+        frag.appendChild(deadNote);
+    } else {
+        const hiddenCombos = recipeList.filter(
+            r =>
+                (r.a === element || r.b === element) &&
+                discovered.has(r.a) &&
+                discovered.has(r.b) &&
+                !discovered.has(r.result)
+        );
+        if (hiddenCombos.length > 0) {
+            const hint = document.createElement("p");
+            hint.className = "tree-hint";
+            hint.textContent = `${hiddenCombos.length} undiscovered combination${
+                hiddenCombos.length > 1 ? "s" : ""
+            } waiting among your elements.`;
+            frag.appendChild(hint);
+        }
+    }
+
+    return frag;
+}
+
+function showTreeDetail(element) {
+    const panel = document.getElementById("tree-detail");
+    if (!panel) return;
+    panel.hidden = false;
+    panel.innerHTML = "";
+    panel.appendChild(buildDetailFragment(element));
+}
+
+function renderTreeList() {
+    const container = document.getElementById("tree");
+    if (!container) return;
+    container.innerHTML = "";
 
     [...discovered]
         .filter(el => universe.has(el))
         .sort()
-        .filter(el => el.includes(query))
         .forEach(element => {
-            const button = document.createElement("button");
-
-            button.textContent = element;
-            button.className = "element-tile";
-            if (element === first) button.classList.add("selected");
-            if (isDeadEnd(element)) button.classList.add("dead-end");
-            if (element === lastDiscovered) button.classList.add("just-found");
-
-            button.onclick = () => {
-                if (first === null) {
-                    first = element;
-                    render();
-                    return;
-                }
-
-                const chosenFirst = first;
-                const result = combine(chosenFirst, element);
-
-                document.getElementById("result").textContent = result
-                    ? `${chosenFirst} + ${element} = ${result}`
-                    : `${chosenFirst} + ${element} = nothing happens`;
-
-                if (result && !discovered.has(result)) {
-                    discovered.add(result);
-                    lastDiscovered = result;
-                    saveProgress();
-                    renderTree();
-                }
-
-                first = null;
-                updateProgressDisplays();
-                render();
-            };
-
-            box.appendChild(button);
+            const card = document.createElement("div");
+            card.className = "tree-card" + (isExhausted(element) ? " dead-end-card" : "");
+            card.appendChild(buildDetailFragment(element));
+            container.appendChild(card);
         });
 }
 
@@ -180,7 +273,7 @@ function buildGraphData() {
 
     const links = [];
     recipeList.forEach(r => {
-        if (!discoveredSet.has(r.result)) return; // spoiler-safe: only show found results
+        if (!discoveredSet.has(r.result)) return; // spoiler-safe
         if (r.a === r.b) {
             links.push({ source: r.a, target: r.result, self: true });
             degree[r.a] = (degree[r.a] || 0) + 1;
@@ -196,73 +289,11 @@ function buildGraphData() {
 
     const nodes = discoveredValid.map(el => ({
         id: el,
-        deadEnd: isDeadEnd(el),
+        deadEnd: isExhausted(el),
         degree: degree[el] || 0
     }));
 
     return { nodes, links };
-}
-
-function showTreeDetail(element) {
-    const panel = document.getElementById("tree-detail");
-    if (!panel) return;
-
-    panel.hidden = false;
-    panel.innerHTML = "";
-
-    const heading = document.createElement("h3");
-    heading.textContent = element;
-    panel.appendChild(heading);
-
-    const origin = recipeList.find(r => r.result === element);
-    const originLine = document.createElement("p");
-    originLine.className = "tree-origin";
-    originLine.textContent = origin ? `Made from ${origin.a} + ${origin.b}` : "Starting element";
-    panel.appendChild(originLine);
-
-    const usedIn = recipeList.filter(
-        r => (r.a === element || r.b === element) && discovered.has(r.result)
-    );
-
-    if (usedIn.length > 0) {
-        const usedHeading = document.createElement("p");
-        usedHeading.className = "tree-used-label";
-        usedHeading.textContent = "Combines into:";
-        panel.appendChild(usedHeading);
-
-        const list = document.createElement("ul");
-        usedIn.forEach(r => {
-            const partner = r.a === element ? r.b : r.a;
-            const li = document.createElement("li");
-            li.textContent = `+ ${partner} → ${r.result}`;
-            list.appendChild(li);
-        });
-        panel.appendChild(list);
-    }
-
-    if (isDeadEnd(element)) {
-        const deadNote = document.createElement("p");
-        deadNote.className = "tree-dead-note";
-        deadNote.textContent = "Dead end — this element never leads to anything new.";
-        panel.appendChild(deadNote);
-    } else {
-        const hiddenCombos = recipeList.filter(
-            r =>
-                (r.a === element || r.b === element) &&
-                discovered.has(r.a) &&
-                discovered.has(r.b) &&
-                !discovered.has(r.result)
-        );
-
-        if (hiddenCombos.length > 0) {
-            const hint = document.createElement("p");
-            hint.className = "tree-hint";
-            hint.textContent = `${hiddenCombos.length} undiscovered combination${
-                hiddenCombos.length > 1 ? "s" : ""
-            } waiting among your elements.`;
-            panel.appendChild(hint);
-        }
-    }
 }
 
 function renderGraph() {
@@ -276,8 +307,7 @@ function renderGraph() {
 
     const { nodes, links } = buildGraphData();
 
-    const svg = d3
-        .select(wrap)
+    const svg = d3.select(wrap)
         .append("svg")
         .attr("viewBox", `0 0 ${width} ${height}`)
         .attr("width", "100%")
@@ -285,14 +315,9 @@ function renderGraph() {
 
     const g = svg.append("g");
 
-    svg.call(
-        d3.zoom()
-            .scaleExtent([0.4, 3])
-            .on("zoom", event => g.attr("transform", event.transform))
-    );
+    svg.call(d3.zoom().scaleExtent([0.4, 3]).on("zoom", event => g.attr("transform", event.transform)));
 
-    const link = g
-        .append("g")
+    const link = g.append("g")
         .attr("stroke", "#4a4f68")
         .attr("stroke-width", 1.2)
         .selectAll("line")
@@ -301,8 +326,7 @@ function renderGraph() {
 
     const radius = d => 8 + Math.min(d.degree, 6) * 1.4;
 
-    const node = g
-        .append("g")
+    const node = g.append("g")
         .selectAll("circle")
         .data(nodes)
         .join("circle")
@@ -330,8 +354,7 @@ function renderGraph() {
                 })
         );
 
-    const label = g
-        .append("g")
+    const label = g.append("g")
         .selectAll("text")
         .data(nodes)
         .join("text")
@@ -343,54 +366,16 @@ function renderGraph() {
         .attr("dy", d => -radius(d) - 4)
         .style("pointer-events", "none");
 
-    simulation = d3
-        .forceSimulation(nodes)
+    simulation = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(links).id(d => d.id).distance(46).strength(0.7))
         .force("charge", d3.forceManyBody().strength(-90))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .force("collide", d3.forceCollide().radius(d => radius(d) + 6))
         .on("tick", () => {
-            link
-                .attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
+            link.attr("x1", d => d.source.x).attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x).attr("y2", d => d.target.y);
             node.attr("cx", d => d.x).attr("cy", d => d.y);
             label.attr("x", d => d.x).attr("y", d => d.y);
-        });
-}
-
-function renderTreeList() {
-    const container = document.getElementById("tree");
-    if (!container) return;
-
-    container.innerHTML = "";
-
-    [...discovered]
-        .filter(el => universe.has(el))
-        .sort()
-        .forEach(element => {
-            const card = document.createElement("div");
-            card.className = "tree-card" + (isDeadEnd(element) ? " dead-end-card" : "");
-
-            const heading = document.createElement("h3");
-            heading.textContent = element;
-            card.appendChild(heading);
-
-            const origin = recipeList.find(r => r.result === element);
-            const originLine = document.createElement("p");
-            originLine.className = "tree-origin";
-            originLine.textContent = origin ? `Made from ${origin.a} + ${origin.b}` : "Starting element";
-            card.appendChild(originLine);
-
-            if (isDeadEnd(element)) {
-                const deadNote = document.createElement("p");
-                deadNote.className = "tree-dead-note";
-                deadNote.textContent = "Dead end";
-                card.appendChild(deadNote);
-            }
-
-            container.appendChild(card);
         });
 }
 
@@ -403,16 +388,13 @@ function setViewMode(mode) {
     const graphWrap = document.getElementById("tree-graph-wrap");
     const detail = document.getElementById("tree-detail");
     const list = document.getElementById("tree");
-
     const isGraph = mode === "graph";
 
     if (graphWrap) graphWrap.hidden = !isGraph;
     if (detail) detail.hidden = true;
     if (list) list.hidden = isGraph;
 
-    document.querySelectorAll(".view-toggle").forEach(btn => {
-        btn.classList.toggle("active", btn.dataset.view === mode);
-    });
+    document.querySelectorAll(".view-toggle").forEach(btn => btn.classList.toggle("active", btn.dataset.view === mode));
 
     if (isGraph) renderGraph();
 }
@@ -426,7 +408,6 @@ function encodeSave() {
 function decodeAndMerge(code) {
     const parsed = JSON.parse(atob(code.trim()));
     if (!Array.isArray(parsed)) throw new Error("Not a valid backup code");
-
     let added = 0;
     parsed.forEach(el => {
         if (typeof el === "string" && !discovered.has(el.toLowerCase())) {
@@ -485,6 +466,43 @@ function setupBackupControls() {
     });
 }
 
+// ---------- Reset ----------
+
+function setupResetControl() {
+    const resetBtn = document.getElementById("reset-btn");
+    const status = document.getElementById("backup-status");
+    if (!resetBtn) return;
+
+    let armed = false;
+    let armTimer = null;
+
+    resetBtn.addEventListener("click", () => {
+        if (!armed) {
+            armed = true;
+            resetBtn.textContent = "Click again to confirm";
+            armTimer = setTimeout(() => {
+                armed = false;
+                resetBtn.textContent = "Delete all progress";
+            }, 4000);
+            return;
+        }
+
+        clearTimeout(armTimer);
+        armed = false;
+        resetBtn.textContent = "Delete all progress";
+
+        resetProgress();
+        updateProgressDisplays();
+        render();
+        renderTree();
+
+        if (status) {
+            status.hidden = false;
+            status.textContent = "Progress reset. Starting fresh with air, water, earth, fire.";
+        }
+    });
+}
+
 function setupTabs() {
     const tabButtons = document.querySelectorAll(".tab-button");
     const panels = document.querySelectorAll(".tab-panel");
@@ -493,10 +511,8 @@ function setupTabs() {
         btn.addEventListener("click", () => {
             tabButtons.forEach(b => b.classList.remove("active"));
             panels.forEach(p => p.classList.remove("active"));
-
             btn.classList.add("active");
             document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
-
             if (btn.dataset.tab === "tree") renderGraph();
         });
     });
@@ -517,6 +533,7 @@ window.addEventListener("load", () => {
     setupTabs();
     setupSearch();
     setupBackupControls();
+    setupResetControl();
     updateProgressDisplays();
     render();
     renderTree();
