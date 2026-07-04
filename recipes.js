@@ -219,7 +219,7 @@ recipe("space", "human", "astronaut");
 recipe("sky", "sun", "day");
 recipe("space", "glass", "telescope");
 recipe("tree", "tool", "wood");
-revipe("cloud", "energy", "storm");
+recipe("cloud", "energy", "storm");
 recipe("tool", "woodpecker", "hammer");
 recipe("hammer", "boulder", "ore");
 recipe("wood", "earth", "plow");
