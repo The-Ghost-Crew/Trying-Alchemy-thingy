@@ -536,6 +536,15 @@
         <p>An element becomes a dead end once every recipe it appears in already leads to something you've discovered — meaning it has nothing left to give, no matter which partner you eventually find. This can change the moment you unlock its last remaining output, even indirectly.</p>
       </div>
 
+      <div class="about-block">
+        <h2>Recipe data</h2>
+        <p>Every page load fetches <code>recipes.js</code> fresh, bypassing the browser cache entirely. If you just updated it and don't see new elements, use this instead of guessing whether it's stale or genuinely stuck — it tells you which.</p>
+        <div class="backup-actions">
+          <button id="reload-recipes-btn">Reload recipes now</button>
+        </div>
+        <p id="recipes-status" class="tree-pending">Not loaded yet.</p>
+      </div>
+
       <div class="about-block danger-zone">
         <h2>Danger zone</h2>
         <p>This clears every element you've discovered and starts you back at air, water, earth, and fire. It can't be undone unless you've saved a backup code above.</p>
@@ -554,15 +563,5 @@
 </main>
 
 <script src="game.js"></script>
-<script>
-  // recipes.js gets edited constantly — force every page load to fetch the
-  // real current version instead of risking a cached copy from the browser
-  // or GitHub Pages' CDN.
-  (function () {
-    var s = document.createElement("script");
-    s.src = "recipes.js?v=" + Date.now();
-    document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling);
-  })();
-</script>
 </body>
 </html>
