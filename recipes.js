@@ -142,3 +142,4 @@ recipe("photosynthesis", "plankton", "phytoplankton");
 recipe("sun", "phytoplankton", "oxygen");
 recipe("pressure", "plant", "coal");
 recipe("coal", "pressure", "diamond");
+
