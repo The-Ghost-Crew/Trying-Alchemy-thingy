@@ -93,6 +93,86 @@ function deadEndDiscoveredCount() {
     return count;
 }
 
+// ---------- Sound ----------
+
+const SOUND_STORAGE_KEY = "alchemy_sound_enabled";
+let soundEnabled = true;
+let audioCtx = null;
+
+function getAudioCtx() {
+    if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtx = new Ctx();
+    }
+    return audioCtx;
+}
+
+function playTone(freq, duration, delay, gainValue) {
+    if (!soundEnabled) return;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.value = gainValue;
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const startTime = ctx.currentTime + delay;
+        osc.start(startTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        osc.stop(startTime + duration + 0.02);
+    } catch (e) {
+        console.warn("Sound playback failed:", e);
+    }
+}
+
+function playDiscoverySound() {
+    playTone(523.25, 0.12, 0, 0.18);    // C5
+    playTone(783.99, 0.16, 0.09, 0.18); // G5
+}
+
+function playNothingSound() {
+    playTone(196, 0.18, 0, 0.12); // low dull note
+}
+
+function loadSoundPreference() {
+    try {
+        const saved = localStorage.getItem(SOUND_STORAGE_KEY);
+        if (saved !== null) soundEnabled = saved === "true";
+    } catch (e) {
+        console.warn("Could not load sound preference:", e);
+    }
+}
+
+function setupSoundToggle() {
+    const btn = document.getElementById("sound-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = soundEnabled ? "🔊 Sound" : "🔇 Sound";
+        btn.classList.toggle("muted", !soundEnabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        soundEnabled = !soundEnabled;
+        try {
+            localStorage.setItem(SOUND_STORAGE_KEY, String(soundEnabled));
+        } catch (e) {
+            console.warn("Could not save sound preference:", e);
+        }
+        updateLabel();
+        if (soundEnabled) playDiscoverySound(); // quick confirmation blip
+    });
+}
+
 let first = null;
 let lastDiscovered = null;
 
@@ -134,15 +214,23 @@ function makeElementTile(element) {
         const chosenFirst = first;
         const result = combine(chosenFirst, element);
 
-        document.getElementById("result").textContent = result
+        const resultEl = document.getElementById("result");
+        resultEl.textContent = result
             ? `${chosenFirst} + ${element} = ${result}`
             : `${chosenFirst} + ${element} = nothing happens`;
+
+        resultEl.classList.remove("flash");
+        void resultEl.offsetWidth; // restart the animation even for repeat results
+        resultEl.classList.add("flash");
 
         if (result && !discovered.has(result)) {
             discovered.add(result);
             lastDiscovered = result;
             saveProgress();
             renderTree();
+            playDiscoverySound();
+        } else if (!result) {
+            playNothingSound();
         }
 
         first = null;
@@ -151,6 +239,40 @@ function makeElementTile(element) {
     };
 
     return button;
+}
+
+const DEADEND_COLLAPSE_KEY = "alchemy_deadend_collapsed";
+let deadEndCollapsed = true; // default collapsed — dead ends can outnumber active elements fast
+
+function loadDeadEndCollapsePreference() {
+    try {
+        const saved = localStorage.getItem(DEADEND_COLLAPSE_KEY);
+        if (saved !== null) deadEndCollapsed = saved === "true";
+    } catch (e) {
+        console.warn("Could not load dead-end section preference:", e);
+    }
+}
+
+function setupDeadEndToggle() {
+    const toggle = document.getElementById("dead-end-toggle");
+    const box = document.getElementById("dead-end-elements");
+    if (!toggle || !box) return;
+
+    const apply = () => {
+        box.hidden = deadEndCollapsed;
+        toggle.classList.toggle("collapsed", deadEndCollapsed);
+    };
+    apply();
+
+    toggle.addEventListener("click", () => {
+        deadEndCollapsed = !deadEndCollapsed;
+        try {
+            localStorage.setItem(DEADEND_COLLAPSE_KEY, String(deadEndCollapsed));
+        } catch (e) {
+            console.warn("Could not save dead-end section preference:", e);
+        }
+        apply();
+    });
 }
 
 function render() {
@@ -538,10 +660,14 @@ function setupSearch() {
 
 window.addEventListener("load", () => {
     loadProgress();
+    loadSoundPreference();
+    loadDeadEndCollapsePreference();
     setupTabs();
     setupSearch();
     setupBackupControls();
     setupResetControl();
+    setupSoundToggle();
+    setupDeadEndToggle();
     updateProgressDisplays();
     render();
     renderTree();
