@@ -322,7 +322,7 @@ recipe("rust", "electrolysis", "iron");
 recipe("bird", "meat", "poultry");
 recipe("meat", "cow", "beef");
 recipe("meat", "pig", "pork");
-recipe("tool", "thread", "needle");
+recipe("metal", "thread", "needle");
 recipe("fire", "egg", "omelette");
 recipe("water", "double rainbow", "paint");
 recipe("syringe", "idea", "vaccine");
