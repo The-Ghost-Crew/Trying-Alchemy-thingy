@@ -5,7 +5,7 @@ recipe("water", "earth", "mud");
 recipe("puddle", "puddle", "pool");
 recipe("mud", "earth", "clay");
 recipe("clay", "fire", "brick");
-recipe("earth", "mud", "soil");
+recipe("earth", "life", "soil");
 recipe("earth", "earth", "rock");
 recipe("rock", "fire", "lava");
 recipe("pool", "pool", "pond");
