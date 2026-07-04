@@ -1,14 +1,366 @@
 <!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>Alchemy Prototype</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alchemy Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink-bg: #14151f;
+    --panel: #1f2130;
+    --panel-raised: #282b3e;
+    --parchment: #ece3cc;
+    --gold: #c9a227;
+    --gold-soft: rgba(201, 162, 39, 0.35);
+    --text: #e8e4d8;
+    --text-muted: #8d92a8;
+    --border: #383c52;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink-bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(201,162,39,0.06), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(201,162,39,0.05), transparent 40%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px 64px;
+  }
+
+  header {
+    max-width: 760px;
+    margin: 0 auto 24px;
+    text-align: center;
+  }
+
+  header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    letter-spacing: 0.02em;
+    margin: 0 0 4px;
+    color: var(--parchment);
+  }
+
+  header p {
+    color: var(--text-muted);
+    margin: 0;
+    font-size: 0.95rem;
+  }
+
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+  }
+
+  /* Manuscript-tab style navigation */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 8px;
+  }
+
+  .tab-button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .tab-button:hover { color: var(--text); }
+
+  .tab-button.active {
+    background: var(--panel-raised);
+    color: var(--gold);
+    position: relative;
+    top: 1px;
+  }
+
+  .tab-button:focus-visible,
+  .element-tile:focus-visible,
+  #search:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  .panel-card {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 0 8px 8px 8px;
+    padding: 24px;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Progress seal — the signature element */
+  .seal {
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px var(--gold-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    margin: 0 auto 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--gold);
+  }
+
+  .seal .progress-fraction {
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .seal .seal-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .seal.complete {
+    border-color: #e9c85f;
+    box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.55);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .seal.complete { animation: seal-glow 2.4s ease-in-out infinite; }
+  }
+
+  @keyframes seal-glow {
+    0%, 100% { box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.4); }
+    50% { box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 8px rgba(233, 200, 95, 0.65); }
+  }
+
+  #complete-banner {
+    text-align: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin: -8px 0 20px;
+  }
+
+  /* Search + element grid */
+  #search {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    margin-bottom: 16px;
+  }
+
+  #search::placeholder { color: var(--text-muted); }
+
+  #elements {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .element-tile {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .element-tile:hover { border-color: var(--gold-soft); }
+
+  .element-tile.selected {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 162, 39, 0.1);
+  }
+
+  #result {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--parchment);
+    min-height: 1.4em;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border);
+  }
+
+  /* Family tree */
+  .tree-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-soft);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .tree-card h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    margin: 0 0 4px;
+    color: var(--parchment);
+    text-transform: capitalize;
+  }
+
+  .tree-origin {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .tree-used-label {
+    margin: 8px 0 4px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .tree-card ul {
+    margin: 0;
+    padding-left: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+  }
+
+  .tree-hint {
+    margin: 8px 0 0;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  #tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  #tree-header .progress-fraction {
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--gold);
+  }
+
+  /* About tab */
+  .about-block {
+    margin-bottom: 20px;
+  }
+
+  .about-block h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    color: var(--parchment);
+    margin: 0 0 8px;
+  }
+
+  .about-block p {
+    color: var(--text-muted);
+    line-height: 1.55;
+    font-size: 0.92rem;
+    margin: 0 0 8px;
+  }
+
+  .about-block code {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--parchment);
+  }
+</style>
+</head>
 <body>
-<h1>Alchemy Prototypev1.5</h1>
-<p>Click two elements to combine them.</p>
-<div id="elements"></div>
-<p id="result"></p>
+
+<header>
+  <h1>Alchemy Prototype</h1>
+  <p>Combine two elements to discover something new.</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tab-button active" data-tab="lab">Elements</button>
+    <button class="tab-button" data-tab="tree">Family Tree</button>
+    <button class="tab-button" data-tab="about">About</button>
+  </div>
+
+  <div class="panel-card">
+
+    <section id="tab-lab" class="tab-panel active">
+      <div class="seal" id="progress-seal">
+        <span class="progress-fraction">0 / 0</span>
+        <span class="seal-label">Found</span>
+      </div>
+      <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
+
+      <input id="search" type="text" placeholder="Search your discovered elements…">
+      <div id="elements"></div>
+      <p id="result"></p>
+    </section>
+
+    <section id="tab-tree" class="tab-panel">
+      <div id="tree-header">
+        <span>Elements you've uncovered so far</span>
+        <span class="progress-fraction">0 / 0</span>
+      </div>
+      <div id="tree"></div>
+    </section>
+
+    <section id="tab-about" class="tab-panel">
+      <div class="about-block">
+        <h2>How progress is saved</h2>
+        <p>Your discovered elements are saved in this browser using <code>localStorage</code> — a small storage space each website gets in your browser. There's no account and no server; the data lives only on this device, in this browser.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>What that means in practice</h2>
+        <p>Progress won't follow you to a different browser or device — Chrome on your laptop and Safari on your phone each keep their own separate save. Clearing your browser's site data or cache will erase it. Private/incognito windows usually don't save it at all.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>Why it's built this way</h2>
+        <p>A shared save file that "only the computer can read" isn't actually possible — any code that runs in your browser can be read by anyone using the browser's developer tools, so it wouldn't add real protection. Real accounts with real security would need a server and password hashing, which is a bigger project than this prototype currently needs.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>The 100% counter</h2>
+        <p>The fraction on the Elements and Family Tree tabs counts every element currently defined in <code>recipes.js</code>. When new elements are added in an update, the total goes up — so it's possible to go from 100% back down after an update. That's expected, not a bug.</p>
+      </div>
+    </section>
+
+  </div>
+</main>
+
 <script src="game.js"></script>
 <script src="recipes.js"></script>
 </body>
 </html>
-
-
