@@ -231,14 +231,63 @@
     background: rgba(181, 69, 63, 0.12);
   }
 
+  .sound-toggle {
+    display: block;
+    margin: 0 auto 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
+
+  .sound-toggle.muted { color: var(--text-muted); opacity: 0.7; }
+
   #result {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.9rem;
     color: var(--parchment);
     min-height: 1.4em;
-    padding-top: 12px;
-    border-top: 1px dashed var(--border);
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 0 0 16px;
   }
+
+  @media (prefers-reduced-motion: no-preference) {
+    #result.flash { animation: result-flash 0.6s ease-out 1; }
+  }
+
+  @keyframes result-flash {
+    0% { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+    100% { border-color: var(--border); box-shadow: none; }
+  }
+
+  .section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--red);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0 0 10px;
+    cursor: pointer;
+  }
+
+  .section-toggle .chevron {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  .section-toggle.collapsed .chevron { transform: rotate(-90deg); }
 
   #tree-header {
     display: flex;
@@ -399,8 +448,10 @@
         <span class="progress-fraction">0 / 0</span>
         <span class="seal-label">Found</span>
       </div>
+      <button id="sound-toggle" class="sound-toggle" type="button">🔊 Sound</button>
       <span class="dead-end-count">0 dead ends found</span>
       <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
+      <p id="result"></p>
 
       <input id="search" type="text" placeholder="Search your discovered elements…">
 
@@ -408,11 +459,11 @@
       <div id="elements"></div>
 
       <div id="dead-end-section" hidden>
-        <p class="section-label">Dead ends</p>
+        <button id="dead-end-toggle" class="section-toggle" type="button">
+          <span class="chevron">▾</span> Dead ends
+        </button>
         <div id="dead-end-elements"></div>
       </div>
-
-      <p id="result"></p>
     </section>
 
     <section id="tab-tree" class="tab-panel">
@@ -501,4 +552,3 @@
 <script src="recipes.js"></script>
 </body>
 </html>
-
