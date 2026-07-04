@@ -551,4 +551,3 @@ window.addEventListener("resize", () => {
     const graphWrap = document.getElementById("tree-graph-wrap");
     if (graphWrap && !graphWrap.hidden) renderGraph();
 });
-
