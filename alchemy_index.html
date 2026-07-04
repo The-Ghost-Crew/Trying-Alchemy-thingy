@@ -109,9 +109,11 @@
   .tab-panel.active { display: block; }
 
   .seal {
-    width: 84px;
-    height: 84px;
-    border-radius: 50%;
+    width: auto;
+    min-width: 84px;
+    height: 72px;
+    padding: 0 20px;
+    border-radius: 999px;
     border: 2px solid var(--gold);
     box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px var(--gold-soft);
     display: flex;
@@ -123,7 +125,11 @@
     color: var(--gold);
   }
 
-  .seal .progress-fraction { font-size: 0.95rem; font-weight: 500; }
+  .seal .progress-fraction {
+    font-size: 0.95rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
 
   .seal .seal-label {
     font-size: 0.55rem;
@@ -448,7 +454,7 @@
         <span class="progress-fraction">0 / 0</span>
         <span class="seal-label">Found</span>
       </div>
-      <button id="sound-toggle" class="sound-toggle" type="button">🔊 Sound</button>
+      <button id="sound-toggle" class="sound-toggle" type="button">Sound</button>
       <span class="dead-end-count">0 dead ends found</span>
       <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
       <p id="result"></p>
@@ -549,6 +555,15 @@
 </main>
 
 <script src="game.js"></script>
-<script src="recipes.js"></script>
+<script>
+  // recipes.js gets edited constantly — force every page load to fetch the
+  // real current version instead of risking a cached copy from the browser
+  // or GitHub Pages' CDN.
+  (function () {
+    var s = document.createElement("script");
+    s.src = "recipes.js?v=" + Date.now();
+    document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling);
+  })();
+</script>
 </body>
 </html>
