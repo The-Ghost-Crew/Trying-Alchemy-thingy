@@ -14,7 +14,14 @@ function recipe(a, b, result) {
     const resultLower = result.toLowerCase();
 
     const key = [aLower, bLower].sort().join("|");
-    if (recipes[key]) throw new Error(`Duplicate combo: ${key}`);
+
+    if (recipes[key]) {
+        // Previously this threw and killed every recipe() call after it in
+        // the file — one duplicate during editing would silently truncate
+        // the whole list. Now it just logs and skips that one line.
+        console.warn(`Skipped duplicate combo "${aLower} + ${bLower}" — already makes "${recipes[key]}".`);
+        return;
+    }
 
     recipes[key] = resultLower;
     recipeList.push({ a: aLower, b: bLower, result: resultLower });
@@ -156,7 +163,7 @@ function setupSoundToggle() {
     if (!btn) return;
 
     const updateLabel = () => {
-        btn.textContent = soundEnabled ? "🔊 Sound" : "🔇 Sound";
+        btn.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
         btn.classList.toggle("muted", !soundEnabled);
     };
     updateLabel();
