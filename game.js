@@ -216,19 +216,28 @@ function buildDetailFragment(element) {
         deadNote.textContent = "Dead end — no remaining combination for this element will produce anything new.";
         frag.appendChild(deadNote);
     } else {
-        const hiddenCombos = recipeList.filter(
-            r =>
-                (r.a === element || r.b === element) &&
-                discovered.has(r.a) &&
-                discovered.has(r.b) &&
-                !discovered.has(r.result)
-        );
-        if (hiddenCombos.length > 0) {
+        // Not exhausted always means AT LEAST one recipe for this element
+        // still leads to an undiscovered result. Split those into
+        // "actionable now" (you hold both ingredients) vs "still locked"
+        // (you're missing a partner) so a non-exhausted element never
+        // renders silently — that silence is exactly what makes a real
+        // bug indistinguishable from "just needs a partner you don't have."
+        const pending = recipesInvolving(element).filter(r => !discovered.has(r.result));
+        const actionable = pending.filter(r => discovered.has(r.a) && discovered.has(r.b));
+
+        if (actionable.length > 0) {
             const hint = document.createElement("p");
             hint.className = "tree-hint";
-            hint.textContent = `${hiddenCombos.length} undiscovered combination${
-                hiddenCombos.length > 1 ? "s" : ""
+            hint.textContent = `${actionable.length} undiscovered combination${
+                actionable.length > 1 ? "s" : ""
             } waiting among your elements.`;
+            frag.appendChild(hint);
+        } else {
+            const hint = document.createElement("p");
+            hint.className = "tree-pending";
+            hint.textContent = `Not a dead end yet — ${pending.length} combination${
+                pending.length > 1 ? "s" : ""
+            } still possible once you find the right partner.`;
             frag.appendChild(hint);
         }
     }
@@ -470,31 +479,30 @@ function setupBackupControls() {
 
 function setupResetControl() {
     const resetBtn = document.getElementById("reset-btn");
+    const confirmBox = document.getElementById("reset-confirm");
+    const confirmBtn = document.getElementById("reset-confirm-btn");
+    const cancelBtn = document.getElementById("reset-cancel-btn");
     const status = document.getElementById("backup-status");
-    if (!resetBtn) return;
-
-    let armed = false;
-    let armTimer = null;
+    if (!resetBtn || !confirmBox) return;
 
     resetBtn.addEventListener("click", () => {
-        if (!armed) {
-            armed = true;
-            resetBtn.textContent = "Click again to confirm";
-            armTimer = setTimeout(() => {
-                armed = false;
-                resetBtn.textContent = "Delete all progress";
-            }, 4000);
-            return;
-        }
+        resetBtn.hidden = true;
+        confirmBox.hidden = false;
+    });
 
-        clearTimeout(armTimer);
-        armed = false;
-        resetBtn.textContent = "Delete all progress";
+    cancelBtn?.addEventListener("click", () => {
+        confirmBox.hidden = true;
+        resetBtn.hidden = false;
+    });
 
+    confirmBtn?.addEventListener("click", () => {
         resetProgress();
         updateProgressDisplays();
         render();
         renderTree();
+
+        confirmBox.hidden = true;
+        resetBtn.hidden = false;
 
         if (status) {
             status.hidden = false;
