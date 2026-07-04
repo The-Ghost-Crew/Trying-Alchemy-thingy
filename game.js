@@ -765,7 +765,7 @@ function setupSearch() {
     search.addEventListener("input", render);
 }
 
-window.addEventListener("load", () => {
+window.addEventListener("load", async () => {
     loadProgress();
     loadSoundPreference();
     loadDeadEndCollapsePreference();
@@ -775,6 +775,17 @@ window.addEventListener("load", () => {
     setupResetControl();
     setupSoundToggle();
     setupDeadEndToggle();
+
+    // window's "load" event doesn't wait for the recipes.js fetch()
+    // happening in the HTML — that's a plain network request, not a
+    // tag-based resource load — so it has to be awaited explicitly here,
+    // otherwise render() could run before any recipes exist yet.
+    try {
+        await window.recipesReady;
+    } catch (e) {
+        console.error("Recipes failed to load:", e);
+    }
+
     updateProgressDisplays();
     render();
     // Tree is intentionally NOT built here — it's the hidden tab on load,
