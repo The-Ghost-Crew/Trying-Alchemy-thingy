@@ -643,7 +643,7 @@ recipe("sea", "plane", "seaplane");
 recipe("ocean", "plane", "seaplane");
 recipe("crab", "science", "carcinization");
 recipe("meat", "vulture", "bone");
-recipe("grave", "skeleton", "bone");
+recipe("food", "vulture", "bone");
 recipe("bone", "chicken", "chicken wing");
 recipe("bone", "flute", "gudi");
 recipe("flute", "human", "flutist");
