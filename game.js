@@ -1,13 +1,56 @@
 const STORAGE_KEY = "alchemy_discovered_elements";
+const ORDER_STORAGE_KEY = "alchemy_discovery_order";
 
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
 const discovered = new Set(BASE_ELEMENTS);
+let discoveryOrder = [...BASE_ELEMENTS]; // oldest-first record of when each element was actually found
 
 const recipes = {};        // lookup: "a|b" -> result
 const recipeList = [];     // full list: { a, b, result }
 const universe = new Set(BASE_ELEMENTS);
 const recipesByElement = new Map(); // element -> recipes it appears in as an ingredient (built once, not scanned each call)
+
+// ---------- Shared animated loader ----------
+// Same emblem as alchemy-logo.svg (center node + four base elements), minus
+// the arced ring text — that used <textPath> ids, which would collide if
+// this markup is ever inserted twice on the same page (page loader + graph
+// loader can both be present). Rotation uses native SVG <animateTransform>
+// rather than CSS, since it needs to rotate around an off-center pivot
+// point (200,200) reliably across browsers.
+function loaderSVG(size) {
+    return `
+<svg viewBox="0 0 400 400" width="${size}" height="${size}" role="img" aria-label="Loading">
+  <circle cx="200" cy="200" r="150" fill="none" stroke="#c9a227" stroke-width="2"/>
+  <circle cx="200" cy="200" r="143" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
+  <g>
+    <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="9s" repeatCount="indefinite"/>
+    <line x1="200" y1="200" x2="200" y2="140" stroke="#4a4f68" stroke-width="1.5"/>
+    <line x1="200" y1="200" x2="256" y2="200" stroke="#4a4f68" stroke-width="1.5"/>
+    <line x1="200" y1="200" x2="200" y2="260" stroke="#4a4f68" stroke-width="1.5"/>
+    <line x1="200" y1="200" x2="144" y2="200" stroke="#4a4f68" stroke-width="1.5"/>
+    <g transform="translate(200,120)">
+      <circle r="20" fill="#14151f" stroke="#b5453f" stroke-width="2"/>
+      <path d="M 0,-9 L 8,7 L -8,7 Z" fill="#b5453f"/>
+    </g>
+    <g transform="translate(276,200)">
+      <circle r="20" fill="#14151f" stroke="#c9a227" stroke-width="2"/>
+      <path d="M 0,-9 L 8,7 L -8,7 Z" fill="none" stroke="#c9a227" stroke-width="1.6"/>
+      <line x1="-5" y1="2" x2="5" y2="2" stroke="#c9a227" stroke-width="1.6"/>
+    </g>
+    <g transform="translate(200,280)">
+      <circle r="20" fill="#14151f" stroke="#5b8fb0" stroke-width="2"/>
+      <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="#5b8fb0"/>
+    </g>
+    <g transform="translate(124,200)">
+      <circle r="20" fill="#14151f" stroke="#5c8c5a" stroke-width="2"/>
+      <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="none" stroke="#5c8c5a" stroke-width="1.6"/>
+      <line x1="-5" y1="-2" x2="5" y2="-2" stroke="#5c8c5a" stroke-width="1.6"/>
+    </g>
+  </g>
+  <circle cx="200" cy="200" r="7" fill="#ece3cc" stroke="#14151f" stroke-width="1.5"/>
+</svg>`;
+}
 
 // ---------- Recipe loading / reloading ----------
 
@@ -210,6 +253,7 @@ function isExhausted(el) {
 function saveProgress() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify([...discovered]));
+        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(discoveryOrder));
     } catch (e) {
         console.warn("Could not save progress:", e);
     }
@@ -218,20 +262,44 @@ function saveProgress() {
 function loadProgress() {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return;
-        const parsed = JSON.parse(saved);
-        if (!Array.isArray(parsed)) return;
-        parsed.forEach(el => {
-            if (typeof el === "string") discovered.add(el.toLowerCase());
-        });
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+                parsed.forEach(el => {
+                    if (typeof el === "string") discovered.add(el.toLowerCase());
+                });
+            }
+        }
     } catch (e) {
         console.warn("Could not load saved progress:", e);
     }
+
+    try {
+        const savedOrder = localStorage.getItem(ORDER_STORAGE_KEY);
+        if (savedOrder) {
+            const parsedOrder = JSON.parse(savedOrder);
+            if (Array.isArray(parsedOrder)) {
+                discoveryOrder = parsedOrder.filter(el => typeof el === "string");
+            }
+        }
+    } catch (e) {
+        console.warn("Could not load discovery order:", e);
+    }
+
+    // Anything discovered but missing from the order list — saves made
+    // before this feature existed, or added some other way — is treated
+    // as the OLDEST possible entry, per the explicit rule that ambiguous
+    // elements should sink to the bottom of "Recent" sort, not land
+    // somewhere arbitrary in the middle.
+    const known = new Set(discoveryOrder);
+    const unknownFirst = [...discovered].filter(el => !known.has(el));
+    discoveryOrder = [...unknownFirst, ...discoveryOrder];
 }
 
 function resetProgress() {
     discovered.clear();
     BASE_ELEMENTS.forEach(el => discovered.add(el));
+    discoveryOrder = [...BASE_ELEMENTS];
     first = null;
     lastDiscovered = null;
     if (lastDiscoveredTimer) {
@@ -240,6 +308,7 @@ function resetProgress() {
     }
     try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(ORDER_STORAGE_KEY);
     } catch (e) {
         console.warn("Could not clear saved progress:", e);
     }
@@ -405,6 +474,7 @@ function makeElementTile(element) {
 
         if (result && !discovered.has(result)) {
             discovered.add(result);
+            discoveryOrder.push(result);
             markJustDiscovered(result);
             saveProgress();
             treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
@@ -457,6 +527,52 @@ function setupDeadEndToggle() {
     applyDeadEndCollapse();
 }
 
+const SORT_MODE_KEY = "alchemy_sort_mode";
+let sortMode = "alpha"; // "alpha" | "recent"
+
+function loadSortModePreference() {
+    try {
+        const saved = localStorage.getItem(SORT_MODE_KEY);
+        if (saved === "alpha" || saved === "recent") sortMode = saved;
+    } catch (e) {
+        console.warn("Could not load sort mode preference:", e);
+    }
+}
+
+function setupSortToggle() {
+    const buttons = document.querySelectorAll(".sort-toggle");
+    buttons.forEach(btn => btn.classList.toggle("active", btn.dataset.sort === sortMode));
+
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            sortMode = btn.dataset.sort;
+            try {
+                localStorage.setItem(SORT_MODE_KEY, sortMode);
+            } catch (e) {
+                console.warn("Could not save sort mode preference:", e);
+            }
+            buttons.forEach(b => b.classList.toggle("active", b.dataset.sort === sortMode));
+            render();
+        });
+    });
+}
+
+function sortElements(list) {
+    if (sortMode === "recent") {
+        // Most recently discovered first. Anything with no known position
+        // in discoveryOrder counts as rank -1 — older than anything that
+        // IS tracked — so it sinks to the bottom instead of landing
+        // somewhere arbitrary.
+        return [...list].sort((a, b) => {
+            const aRank = discoveryOrder.indexOf(a);
+            const bRank = discoveryOrder.indexOf(b);
+            if (aRank !== bRank) return bRank - aRank; // higher index = more recent = shown first
+            return a.localeCompare(b); // stable tiebreaker
+        });
+    }
+    return [...list].sort();
+}
+
 function render() {
     const activeBox = document.getElementById("elements");
     const deadBox = document.getElementById("dead-end-elements");
@@ -468,10 +584,9 @@ function render() {
 
     const query = (document.getElementById("search")?.value || "").toLowerCase().trim();
 
-    const filtered = [...discovered]
-        .filter(el => universe.has(el))
-        .sort()
-        .filter(el => el.includes(query));
+    const filtered = sortElements([...discovered].filter(el => universe.has(el))).filter(el =>
+        el.includes(query)
+    );
 
     const active = filtered.filter(el => !isExhausted(el));
     const dead = filtered.filter(el => isExhausted(el));
@@ -579,10 +694,18 @@ function renderTreeList() {
     container.innerHTML = "";
     if (deadContainer) deadContainer.innerHTML = "";
 
-    const sorted = [...discovered].filter(el => universe.has(el)).sort();
-    const active = sorted.filter(el => !isExhausted(el));
-    const dead = sorted.filter(el => isExhausted(el));
-    const depths = computeDisplayDepths(new Set(sorted)); // computed once for the whole list, not per card
+    const allValid = [...discovered].filter(el => universe.has(el));
+    // Depths must be computed from the FULL discovered set, not the
+    // search-filtered subset — otherwise typing a search query would
+    // change the "steps from base elements" numbers shown on the cards
+    // that remain visible, which would be wrong.
+    const depths = computeDisplayDepths(new Set(allValid));
+
+    const query = (document.getElementById("tree-search")?.value || "").toLowerCase().trim();
+    const visible = allValid.filter(el => el.includes(query)).sort();
+
+    const active = visible.filter(el => !isExhausted(el));
+    const dead = visible.filter(el => isExhausted(el));
 
     active.forEach(element => {
         const card = document.createElement("div");
@@ -640,7 +763,9 @@ function ensureTreeUpToDate() {
     if (!treeDirty) return;
 
     const wrap = document.getElementById("tree-graph-wrap");
-    if (wrap && !window.d3) wrap.textContent = "Loading graph…";
+    if (wrap && !window.d3) {
+        wrap.innerHTML = `${loaderSVG(100)}<p class="graph-loading-text">Loading graph…</p>`;
+    }
 
     loadD3()
         .then(() => {
@@ -800,6 +925,7 @@ function renderGraph() {
         .selectAll("circle")
         .data(nodes)
         .join("circle")
+        .attr("data-el", d => d.id)
         .attr("r", radius)
         .attr("fill", d => d.color)
         .attr("stroke", d => (d.deadEnd ? "#ff6b6b" : "#14151f"))
@@ -827,20 +953,23 @@ function renderGraph() {
     // At hundreds of nodes, labeling everything is unreadable regardless
     // of color — this was the real cause of the "clustered mess" look,
     // not the color scheme. Only base elements and well-connected nodes
-    // get a permanent label; everything else shows its name via tap
-    // (the detail panel below already does this) instead of on-canvas text.
+    // get a permanent label by default; everything else's label still
+    // EXISTS (for search to reveal) but starts at opacity 0.
     const showLabel = d => d.depth === 0 || d.degree >= 4;
 
     const label = g.append("g")
         .selectAll("text")
-        .data(nodes.filter(showLabel))
+        .data(nodes)
         .join("text")
+        .attr("data-el", d => d.id)
+        .attr("data-important", d => (showLabel(d) ? "true" : "false"))
         .text(d => d.id)
         .attr("font-size", 9)
         .attr("font-family", "IBM Plex Mono, monospace")
         .attr("fill", "#c7cadb")
         .attr("text-anchor", "middle")
         .attr("dy", d => -radius(d) - 4)
+        .attr("opacity", d => (showLabel(d) ? 1 : 0))
         .style("pointer-events", "none");
 
     const paint = () => {
@@ -885,6 +1014,33 @@ function renderGraph() {
 
     sim.on("tick", paint);
     simulation = sim;
+
+    applyGraphSearchHighlight(document.getElementById("tree-search")?.value || "");
+}
+
+// Pure DOM-based highlight, independent of D3's internal selections, so it
+// works whenever it's called without needing access to renderGraph()'s
+// local state. Dims non-matching nodes instead of removing them — cheap
+// (just an opacity toggle) and doesn't touch the simulation at all.
+function applyGraphSearchHighlight(query) {
+    const wrap = document.getElementById("tree-graph-wrap");
+    if (!wrap) return;
+    const q = query.toLowerCase().trim();
+
+    wrap.querySelectorAll("circle[data-el]").forEach(el => {
+        const match = !q || el.getAttribute("data-el").includes(q);
+        el.setAttribute("opacity", match ? "1" : "0.15");
+    });
+
+    wrap.querySelectorAll("text[data-el]").forEach(el => {
+        const id = el.getAttribute("data-el");
+        const important = el.getAttribute("data-important") === "true";
+        if (!q) {
+            el.setAttribute("opacity", important ? "1" : "0");
+        } else {
+            el.setAttribute("opacity", id.includes(q) ? "1" : "0");
+        }
+    });
 }
 
 function renderTree() {
@@ -919,7 +1075,13 @@ function decodeAndMerge(code) {
     let added = 0;
     parsed.forEach(el => {
         if (typeof el === "string" && !discovered.has(el.toLowerCase())) {
-            discovered.add(el.toLowerCase());
+            const lower = el.toLowerCase();
+            discovered.add(lower);
+            // A backup code has no timestamps, so true original discovery
+            // order can't survive the trip — treated as "found right now"
+            // on this device instead, which is an approximation worth
+            // knowing about if you rely on "Recent" sort after importing.
+            discoveryOrder.push(lower);
             added++;
         }
     });
@@ -1010,6 +1172,15 @@ function setupResetControl() {
     });
 }
 
+function setupTreeSearch() {
+    const input = document.getElementById("tree-search");
+    if (!input) return;
+    input.addEventListener("input", () => {
+        renderTreeList();
+        applyGraphSearchHighlight(input.value);
+    });
+}
+
 function setupTabs() {
     const tabButtons = document.querySelectorAll(".tab-button");
     const panels = document.querySelectorAll(".tab-panel");
@@ -1039,13 +1210,16 @@ window.addEventListener("load", async () => {
     loadProgress();
     loadSoundPreference();
     loadDeadEndCollapsePreference();
+    loadSortModePreference();
     setupTabs();
     setupSearch();
     setupBackupControls();
     setupResetControl();
     setupSoundToggle();
     setupDeadEndToggle();
+    setupSortToggle();
     setupRecipeReload();
+    setupTreeSearch();
 
     await loadRecipes();
     updateRecipesStatusDisplay();
@@ -1057,6 +1231,8 @@ window.addEventListener("load", async () => {
     // so building a 150+ node force graph before anyone's asked to see it
     // was pure wasted startup work. It builds lazily on first visit via
     // ensureTreeUpToDate().
+
+    document.getElementById("page-loader")?.classList.add("hidden");
 });
 
 window.addEventListener("resize", () => {
