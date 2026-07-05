@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="bgGlow" cx="30%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#2a2d3d"/>
+      <stop offset="100%" stop-color="#14151f"/>
+    </radialGradient>
+    <radialGradient id="bgGlow2" cx="80%" cy="85%" r="60%">
+      <stop offset="0%" stop-color="#3a2f1a" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#14151f" stop-opacity="0"/>
+    </radialGradient>
+    <path id="arcTop" d="M 78,200 A 122,122 0 0 1 322,200" />
+    <path id="arcBottom" d="M 92,238 A 110,110 0 0 0 308,238" />
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="400" height="400" fill="#14151f"/>
+  <rect x="0" y="0" width="400" height="400" fill="url(#bgGlow)"/>
+  <rect x="0" y="0" width="400" height="400" fill="url(#bgGlow2)"/>
+
+  <!-- outer engraved rings, echoing the progress seal badge -->
+  <circle cx="200" cy="200" r="150" fill="none" stroke="#c9a227" stroke-width="2"/>
+  <circle cx="200" cy="200" r="143" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
+  <circle cx="200" cy="200" r="112" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.35"/>
+
+  <!-- ring text -->
+  <text font-family="'IBM Plex Mono', 'Courier New', monospace" font-size="20" letter-spacing="6" fill="#c9a227">
+    <textPath href="#arcTop" startOffset="50%" text-anchor="middle">ALCHEMY</textPath>
+  </text>
+  <text font-family="'IBM Plex Mono', 'Courier New', monospace" font-size="12" letter-spacing="4" fill="#8d92a8">
+    <textPath href="#arcBottom" startOffset="50%" text-anchor="middle">PROTOTYPE</textPath>
+  </text>
+
+  <!-- central emblem: the four base elements as graph nodes, same visual
+       language as the Family Tree graph, radiating from a central point -->
+  <g stroke="#4a4f68" stroke-width="1.5">
+    <line x1="200" y1="200" x2="200" y2="140"/>
+    <line x1="200" y1="200" x2="256" y2="200"/>
+    <line x1="200" y1="200" x2="200" y2="260"/>
+    <line x1="200" y1="200" x2="144" y2="200"/>
+  </g>
+
+  <!-- center node (quintessence) -->
+  <circle cx="200" cy="200" r="7" fill="#ece3cc" stroke="#14151f" stroke-width="1.5"/>
+
+  <!-- fire: upward triangle, top -->
+  <g transform="translate(200,120)">
+    <circle r="20" fill="#14151f" stroke="#b5453f" stroke-width="2"/>
+    <path d="M 0,-9 L 8,7 L -8,7 Z" fill="#b5453f"/>
+  </g>
+
+  <!-- air: upward triangle with bar, right -->
+  <g transform="translate(276,200)">
+    <circle r="20" fill="#14151f" stroke="#c9a227" stroke-width="2"/>
+    <path d="M 0,-9 L 8,7 L -8,7 Z" fill="none" stroke="#c9a227" stroke-width="1.6"/>
+    <line x1="-5" y1="2" x2="5" y2="2" stroke="#c9a227" stroke-width="1.6"/>
+  </g>
+
+  <!-- water: downward triangle, bottom -->
+  <g transform="translate(200,280)">
+    <circle r="20" fill="#14151f" stroke="#5b8fb0" stroke-width="2"/>
+    <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="#5b8fb0"/>
+  </g>
+
+  <!-- earth: downward triangle with bar, left -->
+  <g transform="translate(124,200)">
+    <circle r="20" fill="#14151f" stroke="#5c8c5a" stroke-width="2"/>
+    <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="none" stroke="#5c8c5a" stroke-width="1.6"/>
+    <line x1="-5" y1="-2" x2="5" y2="-2" stroke="#5c8c5a" stroke-width="1.6"/>
+  </g>
+</svg>
