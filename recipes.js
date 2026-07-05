@@ -862,7 +862,7 @@ recipe("star", "earth", "sun");
 recipe("star", "earth (planet)", "sun");
 recipe("bird", "fire", "phoenix");
 recipe("phoenix", "death", "rebirth");
-revipe("bird", "thunder", "thunderbird");
+recipe("bird", "thunder", "thunderbird");
 recipe("water", "alcohol", "vodka");
 recipe("vodka", "country", "russia");
 recipe("russia", "human", "russian");
