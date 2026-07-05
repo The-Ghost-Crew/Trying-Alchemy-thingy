@@ -973,7 +973,7 @@ recipe("maoism", "human", "maoist");
 recipe("moon", "moon", "moonmoon");
 recipe("moon", "satellite", "moonmoon");
 recipe("snake", "human", "gorgon");
-recipe("gorgon", "king", "medusa");
+recipe("gorgon", "queen", "medusa");
 recipe("medusa", "sword", "gorgon head");
 recipe("past", "greece", "ancient greece");
 recipe("old", "greece", "ancient greece");
