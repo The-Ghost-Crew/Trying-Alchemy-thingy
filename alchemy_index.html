@@ -329,11 +329,8 @@
     touch-action: none;
   }
 
-  .tree-legend { display: flex; gap: 16px; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 16px; }
-  .tree-legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-  .legend-dot.gold { background: var(--gold); }
-  .legend-dot.red { background: var(--red); }
+  .tree-legend-block { margin-bottom: 16px; }
+  .tree-legend-block p { font-size: 0.75rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
 
   .tree-card {
     background: var(--panel);
@@ -494,9 +491,8 @@
         <button class="view-toggle" data-view="list">List</button>
       </div>
 
-      <div class="tree-legend">
-        <span><span class="legend-dot gold"></span>Can still combine</span>
-        <span><span class="legend-dot red"></span>Dead end</span>
+      <div class="tree-legend-block">
+        <p>Color: green → red shows steps from the base elements. More blue means more connected. A red ring means dead end.</p>
       </div>
 
       <div id="tree-graph-wrap"></div>
