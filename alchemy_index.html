@@ -375,6 +375,17 @@
   .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
   .tree-dead-note { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--red); }
 
+  .orphan-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .orphan-list li { margin-bottom: 4px; }
+  .orphan-list strong { color: #e0a8a4; text-transform: capitalize; }
+
   .about-block { margin-bottom: 20px; }
 
   .about-block h2 {
@@ -436,7 +447,7 @@
 <header>
   <h1>Alchemy Prototype</h1>
   <p>Combine two elements to discover something new.</p>
-  <span class="version-tag">v2.0</span>
+  <span class="version-tag">v3.0</span>
 </header>
 
 <main>
@@ -464,10 +475,10 @@
       <div id="elements"></div>
 
       <div id="dead-end-section" hidden>
-        <button id="dead-end-toggle" class="section-toggle" type="button">
+        <button id="dead-end-toggle" class="section-toggle dead-end-toggle-btn" type="button">
           <span class="chevron">▾</span> Dead ends
         </button>
-        <div id="dead-end-elements"></div>
+        <div id="dead-end-elements" class="dead-end-toggle-target"></div>
       </div>
     </section>
 
@@ -490,7 +501,17 @@
 
       <div id="tree-graph-wrap"></div>
       <div id="tree-detail" class="tree-card" hidden></div>
-      <div id="tree" hidden></div>
+
+      <div id="tree-list-wrap" hidden>
+        <div id="tree"></div>
+
+        <div id="tree-dead-section" hidden>
+          <button id="tree-dead-toggle" class="section-toggle dead-end-toggle-btn" type="button">
+            <span class="chevron">▾</span> Dead ends
+          </button>
+          <div id="tree-dead-list" class="dead-end-toggle-target"></div>
+        </div>
+      </div>
     </section>
 
     <section id="tab-about" class="tab-panel">
@@ -543,6 +564,7 @@
           <button id="reload-recipes-btn">Reload recipes now</button>
         </div>
         <p id="recipes-status" class="tree-pending">Not loaded yet.</p>
+        <div id="orphan-report"></div>
       </div>
 
       <div class="about-block danger-zone">
