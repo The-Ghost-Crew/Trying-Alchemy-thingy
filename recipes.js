@@ -899,6 +899,8 @@ recipe("china", "island", "taiwan");
 recipe("taiwan", "human", "taiwanese");
 recipe("taiwan", "continent", "asia");
 recipe("village", "human", "villager");
+recipe("monarch", "male", "king");
+recipe("monarch", "female", "queen");
 recipe("cat", "cat", "clowder");
 recipe("metal", "yellow", "gold");
 recipe("metal", "sand", "silicon");
