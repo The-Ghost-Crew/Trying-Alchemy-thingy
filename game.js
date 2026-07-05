@@ -484,7 +484,7 @@ function render() {
 
 // ---------- Shared detail content (used by graph panel AND list view) ----------
 
-function buildDetailFragment(element) {
+function buildDetailFragment(element, depths) {
     const frag = document.createDocumentFragment();
 
     const heading = document.createElement("h3");
@@ -496,6 +496,18 @@ function buildDetailFragment(element) {
     originLine.className = "tree-origin";
     originLine.textContent = origin ? `Made from ${origin.a} + ${origin.b}` : "Starting element";
     frag.appendChild(originLine);
+
+    // Depth is shown as a number here on purpose — it's the same value the
+    // graph encodes as a green-to-red color, and a color-only signal is a
+    // real accessibility gap (red/green is the most common form of color
+    // blindness). This makes sure the number is available either way.
+    if (depths && depths.has(element)) {
+        const depthLine = document.createElement("p");
+        depthLine.className = "tree-origin";
+        const d = depths.get(element);
+        depthLine.textContent = `${d} step${d === 1 ? "" : "s"} from the base elements`;
+        frag.appendChild(depthLine);
+    }
 
     const usedIn = recipeList.filter(r => (r.a === element || r.b === element) && discovered.has(r.result));
     if (usedIn.length > 0) {
@@ -552,9 +564,10 @@ function buildDetailFragment(element) {
 function showTreeDetail(element) {
     const panel = document.getElementById("tree-detail");
     if (!panel) return;
+    const depths = computeDisplayDepths(new Set([...discovered].filter(el => universe.has(el))));
     panel.hidden = false;
     panel.innerHTML = "";
-    panel.appendChild(buildDetailFragment(element));
+    panel.appendChild(buildDetailFragment(element, depths));
 }
 
 function renderTreeList() {
@@ -569,11 +582,12 @@ function renderTreeList() {
     const sorted = [...discovered].filter(el => universe.has(el)).sort();
     const active = sorted.filter(el => !isExhausted(el));
     const dead = sorted.filter(el => isExhausted(el));
+    const depths = computeDisplayDepths(new Set(sorted)); // computed once for the whole list, not per card
 
     active.forEach(element => {
         const card = document.createElement("div");
         card.className = "tree-card";
-        card.appendChild(buildDetailFragment(element));
+        card.appendChild(buildDetailFragment(element, depths));
         container.appendChild(card);
     });
 
@@ -581,7 +595,7 @@ function renderTreeList() {
         dead.forEach(element => {
             const card = document.createElement("div");
             card.className = "tree-card dead-end-card";
-            card.appendChild(buildDetailFragment(element));
+            card.appendChild(buildDetailFragment(element, depths));
             deadContainer.appendChild(card);
         });
     }
@@ -659,6 +673,45 @@ function ensureTreeUpToDate() {
         });
 }
 
+// Minimum number of combination steps from the base elements, computed
+// only over what's actually discovered (not the full recipes.js universe)
+// so this can't leak info about undiscovered dependency chains.
+function computeDisplayDepths(discoveredSet) {
+    const depth = new Map();
+    BASE_ELEMENTS.forEach(el => {
+        if (discoveredSet.has(el)) depth.set(el, 0);
+    });
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const r of recipeList) {
+            if (!discoveredSet.has(r.result)) continue;
+            if (depth.has(r.a) && depth.has(r.b)) {
+                const candidate = Math.max(depth.get(r.a), depth.get(r.b)) + 1;
+                if (!depth.has(r.result) || candidate < depth.get(r.result)) {
+                    depth.set(r.result, candidate);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    return depth;
+}
+
+const DEPTH_COLOR_LOW = { r: 56, g: 191, b: 110 };   // green — base elements, depth 0
+const DEPTH_COLOR_HIGH = { r: 214, g: 69, b: 65 };    // red — deepest elements
+const USAGE_BLUE_BOOST = 150;
+
+function elementColor(depthRatio, usageRatio) {
+    const r = Math.round(DEPTH_COLOR_LOW.r + (DEPTH_COLOR_HIGH.r - DEPTH_COLOR_LOW.r) * depthRatio);
+    const g = Math.round(DEPTH_COLOR_LOW.g + (DEPTH_COLOR_HIGH.g - DEPTH_COLOR_LOW.g) * depthRatio);
+    const bBase = DEPTH_COLOR_LOW.b + (DEPTH_COLOR_HIGH.b - DEPTH_COLOR_LOW.b) * depthRatio;
+    const b = Math.round(Math.min(255, bBase + usageRatio * USAGE_BLUE_BOOST));
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
 function buildGraphData() {
     const discoveredValid = [...discovered].filter(el => universe.has(el));
     const discoveredSet = new Set(discoveredValid);
@@ -682,11 +735,23 @@ function buildGraphData() {
         }
     });
 
-    const nodes = discoveredValid.map(el => ({
-        id: el,
-        deadEnd: isExhausted(el),
-        degree: degree[el] || 0
-    }));
+    const depths = computeDisplayDepths(discoveredSet);
+    const maxDepth = Math.max(1, ...[...depths.values()]);
+    const maxDegree = Math.max(1, ...Object.values(degree));
+
+    const nodes = discoveredValid.map(el => {
+        const depth = depths.has(el) ? depths.get(el) : 0; // fallback for edge cases like imported saves
+        const deg = degree[el] || 0;
+        const depthRatio = depth / maxDepth;
+        const usageRatio = deg / maxDegree;
+        return {
+            id: el,
+            deadEnd: isExhausted(el),
+            degree: deg,
+            depth,
+            color: elementColor(depthRatio, usageRatio)
+        };
+    });
 
     return { nodes, links };
 }
@@ -695,10 +760,6 @@ function renderGraph() {
     const wrap = document.getElementById("tree-graph-wrap");
     if (!wrap || typeof d3 === "undefined") return;
 
-    // The previous simulation was never stopped here, so every rebuild
-    // left the old one running in the background on detached nodes,
-    // forever. Over a long session that's several simulations all
-    // crunching physics on the same main thread at once.
     if (simulation) {
         simulation.stop();
         simulation = null;
@@ -719,7 +780,8 @@ function renderGraph() {
 
     const g = svg.append("g");
 
-    svg.call(d3.zoom().scaleExtent([0.4, 3]).on("zoom", event => g.attr("transform", event.transform)));
+    const zoomBehavior = d3.zoom().scaleExtent([0.15, 4]).on("zoom", event => g.attr("transform", event.transform));
+    svg.call(zoomBehavior);
 
     const link = g.append("g")
         .attr("stroke", "#4a4f68")
@@ -730,14 +792,18 @@ function renderGraph() {
 
     const radius = d => 8 + Math.min(d.degree, 6) * 1.4;
 
+    // Fill now encodes depth (green→red) and usage (blue tint) — see
+    // buildGraphData(). Dead-end status moved to the stroke/ring instead
+    // of fill, since fill is no longer free to mean "dead end": a red
+    // ring is a second, independent signal layered on top of it.
     const node = g.append("g")
         .selectAll("circle")
         .data(nodes)
         .join("circle")
         .attr("r", radius)
-        .attr("fill", d => (d.deadEnd ? "#b5453f" : "#c9a227"))
-        .attr("stroke", "#14151f")
-        .attr("stroke-width", 1.5)
+        .attr("fill", d => d.color)
+        .attr("stroke", d => (d.deadEnd ? "#ff6b6b" : "#14151f"))
+        .attr("stroke-width", d => (d.deadEnd ? 2.5 : 1.5))
         .style("cursor", "pointer")
         .on("click", (event, d) => showTreeDetail(d.id))
         .call(
@@ -758,9 +824,16 @@ function renderGraph() {
                 })
         );
 
+    // At hundreds of nodes, labeling everything is unreadable regardless
+    // of color — this was the real cause of the "clustered mess" look,
+    // not the color scheme. Only base elements and well-connected nodes
+    // get a permanent label; everything else shows its name via tap
+    // (the detail panel below already does this) instead of on-canvas text.
+    const showLabel = d => d.depth === 0 || d.degree >= 4;
+
     const label = g.append("g")
         .selectAll("text")
-        .data(nodes)
+        .data(nodes.filter(showLabel))
         .join("text")
         .text(d => d.id)
         .attr("font-size", 9)
@@ -777,24 +850,40 @@ function renderGraph() {
         label.attr("x", d => d.x).attr("y", d => d.y);
     };
 
+    // Repulsion scaled to node count — at 500+ nodes, the old fixed -90
+    // charge left everything crammed together regardless of color. This
+    // costs more compute per tick, which works against the earlier speed
+    // fix, so iterations are capped rather than scaled freely too.
+    const chargeStrength = -Math.max(90, Math.min(260, nodes.length * 0.9));
+
     const sim = d3.forceSimulation(nodes)
         .force("link", d3.forceLink(links).id(d => d.id).distance(46).strength(0.7))
-        .force("charge", d3.forceManyBody().strength(-90))
+        .force("charge", d3.forceManyBody().strength(chargeStrength))
         .force("center", d3.forceCenter(width / 2, height / 2))
         .force("collide", d3.forceCollide().radius(d => radius(d) + 6))
-        .stop(); // don't let it auto-run on a per-frame timer
+        .stop();
 
-    // Compute the settled layout synchronously in one burst instead of
-    // animating ~300 frames of DOM writes. For 150+ nodes this was the
-    // single biggest cost of opening this tab.
-    const ITERATIONS = 200;
+    const ITERATIONS = Math.min(300, 150 + Math.floor(nodes.length / 3));
     for (let i = 0; i < ITERATIONS; i++) sim.tick();
     paint();
 
-    // Dragging still re-heats the simulation and repaints live — that's a
-    // single-node, user-driven cost, not a full-graph one.
-    sim.on("tick", paint);
+    // Fit the whole graph in view on open instead of showing whatever
+    // corner happened to land at (0,0) — critical once graphs get wide
+    // enough that they no longer fit the visible area at 1:1 scale.
+    if (nodes.length > 0) {
+        const xs = nodes.map(d => d.x);
+        const ys = nodes.map(d => d.y);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const graphW = Math.max(maxX - minX, 1);
+        const graphH = Math.max(maxY - minY, 1);
+        const scale = Math.min(4, Math.max(0.15, Math.min(width / graphW, height / graphH) * 0.85));
+        const tx = width / 2 - scale * (minX + maxX) / 2;
+        const ty = height / 2 - scale * (minY + maxY) / 2;
+        svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    }
 
+    sim.on("tick", paint);
     simulation = sim;
 }
 
