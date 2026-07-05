@@ -449,7 +449,7 @@ recipe("tree", "sun", "fruit");
 recipe("fruit", "time", "mold");
 recipe("mold", "science", "penicillin");
 recipe("mold", "wood", "rot");
-recipe("plant", "pond", "lily pad");
+recipe("flower", "pond", "lily pad");
 recipe("lily pad", "animal", "frog");
 recipe("fish", "egg", "roe");
 recipe("frog", "egg", "frogspawn");
