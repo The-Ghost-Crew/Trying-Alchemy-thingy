@@ -805,7 +805,7 @@ recipe("landmine", "human", "corpse");
 recipe("landmine", "philosophy", "bomb");
 recipe("bomb", "earth", "landmine");
 recipe("bomb", "dirt", "landmine");
-recipe("dessert", "desert", "sahara");
+recipe("desert", "desert", "sahara");
 recipe("sahara", "ice", "antarctica");
 recipe("snow", "desert", "antarctica");
 recipe("snow", "sahara", "antarctica");
