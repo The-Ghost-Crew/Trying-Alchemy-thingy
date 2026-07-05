@@ -1089,3 +1089,8 @@ recipe("alcoholism", "human", "alcoholic");
 recipe("machine", "desk", "computer");
 recipe("computer", "landmine", "minesweeper");
 recipe("minesweeper", "idea", "game");
+recipe("ancient greece", "human", "ancient greek");
+recipe("ancient greece", "continent", "europe");
+recipe("field", "farmer", "farm");
+recipe("land", "farmer", "farm");
+recipe("house", "farmer", "farm");
