@@ -353,7 +353,7 @@ recipe("planet", "acid rain", "venus");
 recipe("acid rain", "human", "corpse");
 recipe("smoke", "rain", "acid rain");
 recipe("planet", "ocean", "neptune");
-recipe("planet", "sun", "mercury");
+recipe("planet", "sun", "mercury (planet)");
 recipe("ring", "planet", "saturn");
 recipe("telescope", "space", "celestial body");
 recipe("celestial body", "sun", "star");
