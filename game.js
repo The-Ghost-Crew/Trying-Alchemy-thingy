@@ -39,6 +39,86 @@ async function loadRecipes() {
     }
 }
 
+// An element is reachable if it's a base element, or if some recipe
+// producing it has BOTH ingredients already reachable. This is a fixpoint
+// computation on purpose, not a one-hop check: an orphan's consumer is
+// itself an orphan, and that thing's consumer is an orphan too, arbitrarily
+// deep. A shallow "check its direct recipe" version would miss any of that.
+function computeReachable() {
+    const reachable = new Set(BASE_ELEMENTS);
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const r of recipeList) {
+            if (!reachable.has(r.result) && reachable.has(r.a) && reachable.has(r.b)) {
+                reachable.add(r.result);
+                changed = true;
+            }
+        }
+    }
+    return reachable;
+}
+
+function computeOrphanReport() {
+    const reachable = computeReachable();
+    const orphans = [];
+
+    universe.forEach(el => {
+        if (reachable.has(el)) return;
+
+        const producingRecipes = recipeList.filter(r => r.result === el);
+        let reason;
+        if (producingRecipes.length === 0) {
+            reason = "Never appears as the result of any recipe.";
+        } else {
+            const blockers = new Set();
+            producingRecipes.forEach(r => {
+                if (!reachable.has(r.a)) blockers.add(r.a);
+                if (!reachable.has(r.b)) blockers.add(r.b);
+            });
+            const list = [...blockers].join(", ");
+            reason = `Only makeable using ${list}, which ${blockers.size > 1 ? "are" : "is"} itself unreachable.`;
+        }
+
+        orphans.push({ element: el, reason });
+    });
+
+    return orphans.sort((a, b) => a.element.localeCompare(b.element));
+}
+
+function renderOrphanReport() {
+    const container = document.getElementById("orphan-report");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const orphans = computeOrphanReport();
+
+    if (orphans.length === 0) {
+        const p = document.createElement("p");
+        p.className = "tree-hint";
+        p.textContent = "No orphans — every element traces back to air, water, earth, or fire.";
+        container.appendChild(p);
+        return;
+    }
+
+    const heading = document.createElement("p");
+    heading.className = "tree-dead-note";
+    heading.textContent = `${orphans.length} orphan element${orphans.length > 1 ? "s" : ""} — unreachable from the base elements:`;
+    container.appendChild(heading);
+
+    const list = document.createElement("ul");
+    list.className = "orphan-list";
+    orphans.forEach(o => {
+        const li = document.createElement("li");
+        const strong = document.createElement("strong");
+        strong.textContent = o.element;
+        li.appendChild(strong);
+        li.appendChild(document.createTextNode(" — " + o.reason));
+        list.appendChild(li);
+    });
+    container.appendChild(list);
+}
+
 function updateRecipesStatusDisplay() {
     const el = document.getElementById("recipes-status");
     if (!el || !recipesLoadStatus.time) return;
@@ -60,6 +140,7 @@ async function reloadRecipes() {
     render();
     treeDirty = true;
     updateRecipesStatusDisplay();
+    renderOrphanReport();
 }
 
 function setupRecipeReload() {
@@ -352,26 +433,28 @@ function loadDeadEndCollapsePreference() {
     }
 }
 
-function setupDeadEndToggle() {
-    const toggle = document.getElementById("dead-end-toggle");
-    const box = document.getElementById("dead-end-elements");
-    if (!toggle || !box) return;
-
-    const apply = () => {
+function applyDeadEndCollapse() {
+    document.querySelectorAll(".dead-end-toggle-target").forEach(box => {
         box.hidden = deadEndCollapsed;
-        toggle.classList.toggle("collapsed", deadEndCollapsed);
-    };
-    apply();
-
-    toggle.addEventListener("click", () => {
-        deadEndCollapsed = !deadEndCollapsed;
-        try {
-            localStorage.setItem(DEADEND_COLLAPSE_KEY, String(deadEndCollapsed));
-        } catch (e) {
-            console.warn("Could not save dead-end section preference:", e);
-        }
-        apply();
     });
+    document.querySelectorAll(".dead-end-toggle-btn").forEach(btn => {
+        btn.classList.toggle("collapsed", deadEndCollapsed);
+    });
+}
+
+function setupDeadEndToggle() {
+    document.querySelectorAll(".dead-end-toggle-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            deadEndCollapsed = !deadEndCollapsed;
+            try {
+                localStorage.setItem(DEADEND_COLLAPSE_KEY, String(deadEndCollapsed));
+            } catch (e) {
+                console.warn("Could not save dead-end section preference:", e);
+            }
+            applyDeadEndCollapse();
+        });
+    });
+    applyDeadEndCollapse();
 }
 
 function render() {
@@ -476,18 +559,34 @@ function showTreeDetail(element) {
 
 function renderTreeList() {
     const container = document.getElementById("tree");
+    const deadContainer = document.getElementById("tree-dead-list");
+    const deadSection = document.getElementById("tree-dead-section");
     if (!container) return;
-    container.innerHTML = "";
 
-    [...discovered]
-        .filter(el => universe.has(el))
-        .sort()
-        .forEach(element => {
+    container.innerHTML = "";
+    if (deadContainer) deadContainer.innerHTML = "";
+
+    const sorted = [...discovered].filter(el => universe.has(el)).sort();
+    const active = sorted.filter(el => !isExhausted(el));
+    const dead = sorted.filter(el => isExhausted(el));
+
+    active.forEach(element => {
+        const card = document.createElement("div");
+        card.className = "tree-card";
+        card.appendChild(buildDetailFragment(element));
+        container.appendChild(card);
+    });
+
+    if (deadContainer) {
+        dead.forEach(element => {
             const card = document.createElement("div");
-            card.className = "tree-card" + (isExhausted(element) ? " dead-end-card" : "");
+            card.className = "tree-card dead-end-card";
             card.appendChild(buildDetailFragment(element));
-            container.appendChild(card);
+            deadContainer.appendChild(card);
         });
+    }
+
+    if (deadSection) deadSection.hidden = dead.length === 0;
 }
 
 // ---------- Family tree: node graph ----------
@@ -510,6 +609,14 @@ function loadD3() {
         script.onload = () => resolve();
         script.onerror = () => reject(new Error("Could not load the graph library"));
         document.head.appendChild(script);
+    }).catch(err => {
+        // A rejected promise was being cached forever here — one network
+        // blip on the CDN would permanently block the graph from ever
+        // loading again for the rest of the session, with no way to
+        // recover short of a full page reload. Clearing it lets a retry
+        // actually try again instead of instantly replaying the old failure.
+        d3LoadPromise = null;
+        throw err;
     });
 
     return d3LoadPromise;
@@ -528,11 +635,27 @@ function ensureTreeUpToDate() {
         })
         .catch(err => {
             console.warn(err);
-            // Graph library failed to load (offline, blocked CDN, etc).
-            // Fall back to the list view content, which needs no library.
-            if (wrap) wrap.textContent = "Graph view unavailable right now — try the List view instead.";
+            // Left dirty on purpose: the list still renders fine below,
+            // but treeDirty stays true so a manual retry (or the next
+            // discovery) gets a genuine fresh attempt instead of being
+            // permanently stuck on this failure.
             renderTreeList();
-            treeDirty = false;
+
+            if (wrap) {
+                wrap.innerHTML = "";
+                const msg = document.createElement("p");
+                msg.className = "tree-dead-note";
+                msg.textContent = "Graph couldn't load (network issue or a blocked script). ";
+
+                const retry = document.createElement("button");
+                retry.type = "button";
+                retry.className = "view-toggle";
+                retry.textContent = "Retry";
+                retry.addEventListener("click", () => ensureTreeUpToDate());
+
+                msg.appendChild(retry);
+                wrap.appendChild(msg);
+            }
         });
 }
 
@@ -683,14 +806,14 @@ function renderTree() {
 function setViewMode(mode) {
     const graphWrap = document.getElementById("tree-graph-wrap");
     const detail = document.getElementById("tree-detail");
-    const list = document.getElementById("tree");
+    const listWrap = document.getElementById("tree-list-wrap");
     const isGraph = mode === "graph";
 
     ensureTreeUpToDate();
 
     if (graphWrap) graphWrap.hidden = !isGraph;
     if (detail) detail.hidden = true;
-    if (list) list.hidden = isGraph;
+    if (listWrap) listWrap.hidden = isGraph;
 
     document.querySelectorAll(".view-toggle").forEach(btn => btn.classList.toggle("active", btn.dataset.view === mode));
 }
@@ -837,6 +960,7 @@ window.addEventListener("load", async () => {
 
     await loadRecipes();
     updateRecipesStatusDisplay();
+    renderOrphanReport();
 
     updateProgressDisplays();
     render();
