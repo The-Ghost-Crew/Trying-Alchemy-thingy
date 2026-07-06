@@ -192,6 +192,7 @@ async function reloadRecipes() {
     updateProgressDisplays();
     render();
     treeDirty = true;
+    graphLoadFailed = false;
     updateRecipesStatusDisplay();
     renderOrphanReport();
 }
@@ -488,6 +489,7 @@ function makeElementTile(element) {
             markJustDiscovered(result);
             saveProgress();
             treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
+            graphLoadFailed = false;
             playDiscoverySound();
         } else if (!result) {
             playNothingSound();
@@ -740,6 +742,7 @@ function renderTreeList() {
 
 let simulation = null;
 let treeDirty = true; // tree is rebuilt lazily, only when the tab is actually opened
+let graphLoadFailed = false; // prevents simple navigation clicks from silently re-hammering a failing CDN
 let d3LoadPromise = null;
 
 // D3 is a ~280KB library only needed for the graph view. Loading it
@@ -770,7 +773,7 @@ function loadD3() {
 }
 
 function ensureTreeUpToDate() {
-    if (!treeDirty) return;
+    if (!treeDirty || graphLoadFailed) return;
 
     const wrap = document.getElementById("tree-graph-wrap");
     if (wrap && !window.d3) {
@@ -784,14 +787,25 @@ function ensureTreeUpToDate() {
         })
         .catch(err => {
             console.warn(err);
+            graphLoadFailed = true;
             // Left dirty on purpose: the list still renders fine below,
-            // but treeDirty stays true so a manual retry (or the next
-            // discovery) gets a genuine fresh attempt instead of being
-            // permanently stuck on this failure.
+            // but treeDirty stays true so a genuinely new discovery still
+            // gets a fresh attempt automatically. graphLoadFailed is what
+            // actually stops the spam — without it, every tab switch or
+            // Graph/List click was silently re-attempting the same failing
+            // network request, over and over, with no visible indication
+            // that was happening.
             renderTreeList();
 
             if (wrap) {
                 wrap.innerHTML = "";
+
+                const icon = document.createElement("div");
+                icon.innerHTML = loaderSVG(70);
+                icon.querySelector("animateTransform")?.remove(); // static here — spinning would misleadingly suggest it's still trying
+                icon.style.opacity = "0.5";
+                wrap.appendChild(icon);
+
                 const msg = document.createElement("p");
                 msg.className = "tree-dead-note";
                 msg.textContent = "Graph couldn't load (network issue or a blocked script). ";
@@ -800,7 +814,10 @@ function ensureTreeUpToDate() {
                 retry.type = "button";
                 retry.className = "view-toggle";
                 retry.textContent = "Retry";
-                retry.addEventListener("click", () => ensureTreeUpToDate());
+                retry.addEventListener("click", () => {
+                    graphLoadFailed = false;
+                    ensureTreeUpToDate();
+                });
 
                 msg.appendChild(retry);
                 wrap.appendChild(msg);
@@ -1139,6 +1156,7 @@ function setupBackupControls() {
             updateProgressDisplays();
             render();
             treeDirty = true;
+            graphLoadFailed = false;
             showStatus(added > 0 ? `Added ${added} element(s) from the backup code.` : "Nothing new in that code — you already had it all.");
         } catch {
             showStatus("That code couldn't be read. Double-check you copied it in full.");
@@ -1171,6 +1189,7 @@ function setupResetControl() {
         updateProgressDisplays();
         render();
         treeDirty = true;
+        graphLoadFailed = false;
 
         confirmBox.hidden = true;
         resetBtn.hidden = false;
