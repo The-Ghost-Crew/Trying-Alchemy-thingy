@@ -1355,7 +1355,7 @@ recipe("gum", "human", "chew");
 recipe("chew", "science", "mastication");
 recipe("philosophy", "mother", "parent");
 recipe("philosophy", "father", "parent");
-recipe("parent", "dead", "orphan");
+recipe("parent", "death", "orphan");
 recipe("orphan", "house", "orphanage");
 recipe("orphan", "philosophy", "alone");
 recipe("alone", "sex", "masturbation");
