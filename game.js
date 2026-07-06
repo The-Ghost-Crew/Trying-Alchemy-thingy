@@ -68,12 +68,22 @@ function resetRecipeData() {
     BASE_ELEMENTS.forEach(el => universe.add(el));
 }
 
-async function loadRecipes() {
+let usedPrefetch = false;
+
+async function loadRecipes({ forceFresh = false } = {}) {
     resetRecipeData();
     try {
-        const res = await fetch("recipes.js", { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const code = await res.text();
+        let code;
+        if (!forceFresh && !usedPrefetch && window.__recipesPrefetch) {
+            // Reuse the fetch that was already kicked off at the very top
+            // of <head>, instead of starting a second one from scratch.
+            usedPrefetch = true;
+            code = await window.__recipesPrefetch;
+        } else {
+            const res = await fetch("recipes.js", { cache: "no-store" });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            code = await res.text();
+        }
         (0, eval)(code); // indirect eval — runs in global scope so recipe(...) reaches the real function
         recipesLoadStatus = { ok: true, time: new Date(), count: recipeList.length, error: null };
     } catch (e) {
@@ -178,7 +188,7 @@ function updateRecipesStatusDisplay() {
 }
 
 async function reloadRecipes() {
-    await loadRecipes();
+    await loadRecipes({ forceFresh: true });
     updateProgressDisplays();
     render();
     treeDirty = true;
@@ -1206,7 +1216,13 @@ function setupSearch() {
     search.addEventListener("input", render);
 }
 
-window.addEventListener("load", async () => {
+// "load" waits for every resource on the page — fonts included — before
+// firing. Fonts have nothing to do with whether the game can run, so
+// gating startup on them was adding real, avoidable delay. DOMContentLoaded
+// fires as soon as the HTML itself is parsed, which is all this actually
+// needs, since game.js sits at the end of <body> and everything it queries
+// by ID is already parsed by the time this script runs at all.
+window.addEventListener("DOMContentLoaded", async () => {
     loadProgress();
     loadSoundPreference();
     loadDeadEndCollapsePreference();
@@ -1232,6 +1248,18 @@ window.addEventListener("load", async () => {
     // was pure wasted startup work. It builds lazily on first visit via
     // ensureTreeUpToDate().
 
+    document.getElementById("page-loader")?.classList.add("hidden");
+});
+
+// Safety net independent of how fast (or slow) the load actually is —
+// a bad connection on the visitor's end isn't something any amount of
+// optimizing here can promise around.
+setTimeout(() => {
+    const skipBtn = document.getElementById("page-loader-skip");
+    if (skipBtn) skipBtn.hidden = false;
+}, 5000);
+
+document.getElementById("page-loader-skip")?.addEventListener("click", () => {
     document.getElementById("page-loader")?.classList.add("hidden");
 });
 
