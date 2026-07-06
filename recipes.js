@@ -1587,3 +1587,6 @@ recipe("russia", "language", "russian");
 recipe("alphabet", "greek", "greek alphabet");
 recipe("alphabet", "ancient greek", "greek alphabet");
 recipe("book", "ussr", "animal farm");
+recipe("chef", "fabric", "apron");
+recipe("chef", "kitchen", "cook");
+recipe("water", "allergy", "aquagenic urticaria");
