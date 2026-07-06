@@ -1547,3 +1547,4 @@ recipe("sex", "toy", "sex toy");
 recipe("sex toy", "female", "dildo");
 recipe("flashlight", "sex toy", "fleshlight");
 recipe("dildo", "human", "penis");
+recipe("fabric", "fabric", "cloth");
