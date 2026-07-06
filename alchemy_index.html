@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<script>
+  // Kicked off as early as physically possible — before fonts, before
+  // game.js even downloads — so the network round-trip overlaps with the
+  // rest of the page loading instead of starting only after it. Still
+  // no-store: this is about timing, not about relaxing freshness.
+  window.__recipesPrefetch = fetch("recipes.js", { cache: "no-store" })
+    .then(res => {
+      if (!res.ok) throw new Error(`recipes.js returned HTTP ${res.status}`);
+      return res.text();
+    });
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Alchemy Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -175,7 +186,7 @@
     margin: -4px 0 20px;
   }
 
-  #search {
+  #search, #tree-search {
     width: 100%;
     background: var(--panel);
     border: 1px solid var(--border);
@@ -187,7 +198,7 @@
     margin-bottom: 16px;
   }
 
-  #search::placeholder { color: var(--text-muted); }
+  #search::placeholder, #tree-search::placeholder { color: var(--text-muted); }
 
   #elements, #dead-end-elements { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 
@@ -305,7 +316,7 @@
 
   .tree-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
 
-  .view-toggle, .about-block button {
+  .view-toggle, .sort-toggle, .about-block button {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
     text-transform: uppercase;
@@ -318,7 +329,9 @@
     cursor: pointer;
   }
 
-  .view-toggle.active { color: var(--gold); border-color: var(--gold-soft); }
+  .view-toggle.active, .sort-toggle.active { color: var(--gold); border-color: var(--gold-soft); }
+
+  .sort-controls { display: flex; gap: 8px; margin-bottom: 12px; }
 
   #tree-graph-wrap {
     background: var(--panel);
@@ -327,6 +340,55 @@
     overflow: hidden;
     margin-bottom: 12px;
     touch-action: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+  }
+
+  .graph-loading-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 10px 0 0;
+  }
+
+  #page-loader {
+    position: fixed;
+    inset: 0;
+    background: var(--ink-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 9999;
+    transition: opacity 0.4s ease;
+  }
+
+  #page-loader.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #page-loader-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  #page-loader-skip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 6px 16px;
+    cursor: pointer;
   }
 
   .tree-legend-block { margin-bottom: 16px; }
@@ -441,6 +503,41 @@
 </head>
 <body>
 
+<div id="page-loader">
+  <svg viewBox="0 0 400 400" width="140" height="140" role="img" aria-label="Loading">
+    <circle cx="200" cy="200" r="150" fill="none" stroke="#c9a227" stroke-width="2"/>
+    <circle cx="200" cy="200" r="143" fill="none" stroke="#c9a227" stroke-width="1" opacity="0.5"/>
+    <g>
+      <animateTransform attributeName="transform" type="rotate" from="0 200 200" to="360 200 200" dur="9s" repeatCount="indefinite"/>
+      <line x1="200" y1="200" x2="200" y2="140" stroke="#4a4f68" stroke-width="1.5"/>
+      <line x1="200" y1="200" x2="256" y2="200" stroke="#4a4f68" stroke-width="1.5"/>
+      <line x1="200" y1="200" x2="200" y2="260" stroke="#4a4f68" stroke-width="1.5"/>
+      <line x1="200" y1="200" x2="144" y2="200" stroke="#4a4f68" stroke-width="1.5"/>
+      <g transform="translate(200,120)">
+        <circle r="20" fill="#14151f" stroke="#b5453f" stroke-width="2"/>
+        <path d="M 0,-9 L 8,7 L -8,7 Z" fill="#b5453f"/>
+      </g>
+      <g transform="translate(276,200)">
+        <circle r="20" fill="#14151f" stroke="#c9a227" stroke-width="2"/>
+        <path d="M 0,-9 L 8,7 L -8,7 Z" fill="none" stroke="#c9a227" stroke-width="1.6"/>
+        <line x1="-5" y1="2" x2="5" y2="2" stroke="#c9a227" stroke-width="1.6"/>
+      </g>
+      <g transform="translate(200,280)">
+        <circle r="20" fill="#14151f" stroke="#5b8fb0" stroke-width="2"/>
+        <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="#5b8fb0"/>
+      </g>
+      <g transform="translate(124,200)">
+        <circle r="20" fill="#14151f" stroke="#5c8c5a" stroke-width="2"/>
+        <path d="M 0,9 L 8,-7 L -8,-7 Z" fill="none" stroke="#5c8c5a" stroke-width="1.6"/>
+        <line x1="-5" y1="-2" x2="5" y2="-2" stroke="#5c8c5a" stroke-width="1.6"/>
+      </g>
+    </g>
+    <circle cx="200" cy="200" r="7" fill="#ece3cc" stroke="#14151f" stroke-width="1.5"/>
+  </svg>
+  <p id="page-loader-text">Loading elements…</p>
+  <button id="page-loader-skip" type="button" hidden>Skip loading</button>
+</div>
+
 <header>
   <h1>Alchemy Prototype</h1>
   <p>Combine two elements to discover something new.</p>
@@ -466,6 +563,11 @@
       <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
       <p id="result" aria-live="polite"></p>
 
+      <div class="sort-controls">
+        <button class="sort-toggle active" data-sort="alpha" type="button">A–Z</button>
+        <button class="sort-toggle" data-sort="recent" type="button">Recent</button>
+      </div>
+
       <input id="search" type="text" placeholder="Search your discovered elements…">
 
       <p class="section-label">Elements</p>
@@ -485,6 +587,8 @@
         <span class="progress-fraction">0 / 0</span>
       </div>
       <span class="dead-end-count">0 dead ends found</span>
+
+      <input id="tree-search" type="text" placeholder="Search elements…">
 
       <div class="tree-controls">
         <button class="view-toggle active" data-view="graph">Graph</button>
