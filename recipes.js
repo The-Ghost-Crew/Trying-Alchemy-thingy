@@ -1723,3 +1723,5 @@ recipe("scare", "emotion", "fear");
 recipe("fear", "philosophy", "emotion");
 recipe("fear", "science", "phobia");
 recipe("wall", "country", "border");
+recipe("plant", "rain", "growth");
+recipe("paint", "hair", "dye");
