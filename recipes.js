@@ -1725,3 +1725,6 @@ recipe("fear", "science", "phobia");
 recipe("wall", "country", "border");
 recipe("plant", "rain", "growth");
 recipe("paint", "hair", "dye");
+recipe("greek", "hell", "tartarus");
+recipe("cloth", "cloth", "clothes");
+recipe("money", "apartment", "business");
