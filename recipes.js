@@ -1620,5 +1620,7 @@ recipe("city", "bird", "pigeon");
 recipe("pigeon", "mail", "messenger pigeon");
 recipe("letter", "letter", "newspaper");
 recipe("text", "alphabet", "letter (alphabet)");
-recipe("letter (alphabet)", "math", "number");
+recipe("letter (alphabet)", "math", "digit");
 recipe("number", "nothing", "0");
+recipe("digit", "digit", "number");
+recipe("ghost", "text", "ghosting");
