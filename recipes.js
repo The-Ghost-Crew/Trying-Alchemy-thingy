@@ -1744,3 +1744,4 @@ recipe("businesswoman", "male", "businessman");
 recipe("cloth", "cloth", "clothes");
 recipe("clothes", "sport", "uniform");
 recipe("clothes", "penguin", "tuxedo");
+revipe("angler", "fish", "fishing");
