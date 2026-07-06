@@ -1432,7 +1432,7 @@ recipe("circle", "idea", "shape");
 recipe("blood", "human", "vampire");
 recipe("vampire", "human", "vampire");
 recipe("vampire", "united states of america", "rhode island");
-recipe("rhode island", "human", "rhode islanders");
+recipe("rhode island", "human", "rhode islander");
 recipe("book", "school", "textbook");
 recipe("school", "paper", "homework");
 recipe("circle", "circle", "venn diagram");
