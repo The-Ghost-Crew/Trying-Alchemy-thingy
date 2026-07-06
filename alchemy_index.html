@@ -347,6 +347,14 @@
     min-height: 200px;
   }
 
+  /* [hidden] has lower specificity than the ID rule above on its own,
+     so JS setting the hidden attribute was being silently overridden —
+     the element stayed visually flex-displayed regardless. This rule
+     wins because it combines the ID with the attribute selector. */
+  #tree-graph-wrap[hidden] {
+    display: none;
+  }
+
   .graph-loading-text {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
