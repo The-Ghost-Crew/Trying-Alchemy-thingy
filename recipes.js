@@ -1744,4 +1744,7 @@ recipe("businesswoman", "male", "businessman");
 recipe("cloth", "cloth", "clothes");
 recipe("clothes", "sport", "uniform");
 recipe("clothes", "penguin", "tuxedo");
-revipe("fishing rod", "sport", "fishing");
+recipe("fishing rod", "sport", "fishing");
+recope("green flag", "philosophy", "good");
+recipe("red flag", "philosophy", "bad");
+recipe("partner", "partner", "relationship");
