@@ -1,3 +1,15 @@
+(function () {
+"use strict";
+// Everything in this file used to be implicit globals — discovered,
+// recipeList, universe, every render/save/load function — all directly
+// reachable and rewritable from the browser console by name (e.g.
+// `discovered.add("everything")` just worked). Wrapping the whole file in
+// this closure removes that specific attack surface entirely: nothing in
+// here exists outside this function unless explicitly attached to window,
+// which nothing is. This does NOT hide the source (view-source still shows
+// everything) — it stops the "one-line console paste" class of exploit,
+// which was the actual highest-priority ask.
+
 const STORAGE_KEY = "alchemy_discovered_elements";
 const ORDER_STORAGE_KEY = "alchemy_discovery_order";
 
@@ -261,9 +273,211 @@ function isExhausted(el) {
     return relevant.every(r => discovered.has(r.result));
 }
 
+// ---------- Integrity / anti-cheat ----------
+//
+// Four independent checks, each calling recordStrike() when triggered.
+// recordStrike() requires TWO DISTINCT check types to agree within a
+// rolling window before the real penalty (wipe + timed lock) fires — a
+// single check alone is only logged, never enough on its own. This is
+// intentional: several loosely-related timing heuristics aren't actually
+// independent evidence, they're the same signal measured multiple times,
+// and a hair-trigger single detector risks nuking a legitimate player's
+// save over a false positive. Requiring corroboration from a genuinely
+// different kind of check is the actual safeguard here.
+//
+// None of this is presented as unbeatable — it isn't, and can't be, on a
+// fully client-side static site. It raises the floor from "paste one
+// console line" to "actually read and reverse engineer this file."
+
+const SIGNATURE_KEY = "alchemy_save_signature";
+const ANTICHEAT_KEY = "alchemy_anticheat_state";
+const STRIKE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const STRIKE_TYPES_REQUIRED = 2; // distinct kinds of check, not just count
+const PENALTY_DURATION_MS = 60 * 60 * 1000; // 1 hour
+
+// Not a real secret — it ships in this public file and can be extracted by
+// anyone who reads it. This stops hand-editing localStorage JSON in the
+// Application tab without reading the source; it does not stop someone who
+// reads the source and computes a matching signature themselves. Said
+// plainly here rather than implying otherwise.
+const INTEGRITY_SALT = "alchemy-v3-integrity-9f2b";
+
+function simpleHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+        h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+    }
+    return (h >>> 0).toString(16);
+}
+
+function computeSignature(elementsArray) {
+    return simpleHash([...elementsArray].sort().join(",") + INTEGRITY_SALT);
+}
+
+let reconciledUnknownElements = new Set(); // elements whose order was GUESSED, not recorded — see loadProgress()
+
+function loadAnticheatState() {
+    try {
+        const saved = localStorage.getItem(ANTICHEAT_KEY);
+        if (saved) return JSON.parse(saved);
+    } catch (e) {
+        console.warn("Could not load anticheat state:", e);
+    }
+    return { strikes: [], penaltyUntil: null };
+}
+
+function saveAnticheatState(state) {
+    try {
+        localStorage.setItem(ANTICHEAT_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.warn("Could not save anticheat state:", e);
+    }
+}
+
+function recordStrike(type, detail) {
+    const state = loadAnticheatState();
+    const now = Date.now();
+    state.strikes = state.strikes || [];
+    state.strikes.push({ type, detail, time: now });
+    state.strikes = state.strikes.filter(s => now - s.time <= STRIKE_WINDOW_MS);
+
+    console.warn(`[integrity] ${type}: ${detail}`);
+
+    const distinctTypes = new Set(state.strikes.map(s => s.type));
+    if (distinctTypes.size >= STRIKE_TYPES_REQUIRED) {
+        applyPenalty(state);
+    } else {
+        saveAnticheatState(state);
+    }
+}
+
+function applyPenalty(state) {
+    resetProgress();
+    const penaltyUntil = Date.now() + PENALTY_DURATION_MS;
+    saveAnticheatState({ strikes: [], penalized: true, penaltyUntil, lastPenaltyTime: Date.now() });
+    showPenaltyLock(penaltyUntil);
+}
+
+function formatDuration(ms) {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+let isPenaltyLocked = false;
+
+function showPenaltyLock(penaltyUntil) {
+    isPenaltyLocked = true;
+    const loader = document.getElementById("page-loader");
+    if (!loader) return;
+
+    loader.classList.remove("hidden");
+    loader.innerHTML = `
+      <p id="page-loader-text">Progress reset — integrity check failed</p>
+      <p id="penalty-detail">Multiple independent checks flagged this save, so progress has been cleared. You can play again in <span id="penalty-countdown"></span>.</p>
+    `;
+
+    const tick = () => {
+        const remaining = penaltyUntil - Date.now();
+        const countdownEl = document.getElementById("penalty-countdown");
+        if (!countdownEl) return;
+        if (remaining <= 0) {
+            clearInterval(interval);
+            location.reload();
+            return;
+        }
+        countdownEl.textContent = formatDuration(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+}
+
+// Checks whether a discovered element could plausibly have been earned:
+// does it have ANY valid recipe at all, and — for elements with genuinely
+// tracked order — was at least one producing recipe's pair already known
+// before this element was recorded? Elements from saves made before order
+// tracking existed are exempted from the ordering half of this check,
+// since their order was guessed at load time, not recorded — applying a
+// strict check to guessed data would falsely flag long-time legitimate
+// players on their first load under this system.
+function validateDiscoveryPlausibility() {
+    const orderIndex = new Map(discoveryOrder.map((el, i) => [el, i]));
+
+    for (const el of discovered) {
+        if (BASE_ELEMENTS.includes(el) || !universe.has(el)) continue;
+
+        const producers = recipeList.filter(r => r.result === el);
+        if (producers.length === 0) {
+            recordStrike("plausibility", `"${el}" has no valid recipe anywhere but is marked discovered.`);
+            return;
+        }
+
+        if (reconciledUnknownElements.has(el)) continue; // no trustworthy order data to check
+
+        const elIndex = orderIndex.has(el) ? orderIndex.get(el) : -1;
+        if (elIndex === -1) continue;
+
+        const hasValidOrder = producers.some(r => {
+            const aIndex = orderIndex.has(r.a) ? orderIndex.get(r.a) : -1;
+            const bIndex = orderIndex.has(r.b) ? orderIndex.get(r.b) : -1;
+            return aIndex !== -1 && bIndex !== -1 && aIndex < elIndex && bIndex < elIndex;
+        });
+
+        if (!hasValidOrder) {
+            recordStrike("plausibility", `"${el}" appears before any valid recipe for it could have fired.`);
+            return;
+        }
+    }
+}
+
+// A patched Function.prototype.toString could lie about this too — a known
+// limit, not a claim this is airtight. It still catches the common case of
+// a script overriding a built-in without also covering its tracks.
+const NATIVE_CHECK_TARGETS = [
+    ["Date.now", Date.now],
+    ["Array.prototype.push", Array.prototype.push],
+    ["Set.prototype.add", Set.prototype.add],
+    ["JSON.stringify", JSON.stringify]
+];
+
+function checkNativeFunctionsIntact() {
+    for (const [name, fn] of NATIVE_CHECK_TARGETS) {
+        let native = false;
+        try {
+            native = Function.prototype.toString.call(fn).includes("[native code]");
+        } catch (e) {
+            native = false;
+        }
+        if (!native) {
+            recordStrike("tamper", `${name} no longer looks like native code — possibly monkey-patched.`);
+            return;
+        }
+    }
+}
+
+const recentComboTimestamps = [];
+const COMBO_WINDOW_SIZE = 6;
+const COMBO_WINDOW_MS = 1000;
+
+function recordComboTiming() {
+    const now = performance.now();
+    recentComboTimestamps.push(now);
+    if (recentComboTimestamps.length > COMBO_WINDOW_SIZE) recentComboTimestamps.shift();
+
+    if (recentComboTimestamps.length === COMBO_WINDOW_SIZE) {
+        const span = recentComboTimestamps[recentComboTimestamps.length - 1] - recentComboTimestamps[0];
+        if (span < COMBO_WINDOW_MS) {
+            recordStrike("rate", `${COMBO_WINDOW_SIZE} combo attempts completed in ${Math.round(span)}ms.`);
+        }
+    }
+}
+
 function saveProgress() {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify([...discovered]));
+        const elementsArr = [...discovered];
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(elementsArr));
+        localStorage.setItem(SIGNATURE_KEY, computeSignature(elementsArr));
         localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(discoveryOrder));
     } catch (e) {
         console.warn("Could not save progress:", e);
@@ -271,18 +485,34 @@ function saveProgress() {
 }
 
 function loadProgress() {
+    let loadedElements = null;
+
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) {
-                parsed.forEach(el => {
-                    if (typeof el === "string") discovered.add(el.toLowerCase());
-                });
+                loadedElements = parsed.filter(el => typeof el === "string").map(el => el.toLowerCase());
             }
         }
     } catch (e) {
         console.warn("Could not load saved progress:", e);
+    }
+
+    if (loadedElements) {
+        const storedSignature = localStorage.getItem(SIGNATURE_KEY);
+        const expectedSignature = computeSignature(loadedElements);
+
+        if (storedSignature !== null && storedSignature !== expectedSignature) {
+            // Don't grant progress that doesn't match its own signature —
+            // but a mismatch alone doesn't trigger the penalty. It could be
+            // real tampering, or it could be our own bug (a save-format
+            // change on our end would also cause this). One strike, not
+            // an automatic wipe.
+            recordStrike("signature", "Saved elements did not match their stored signature.");
+        } else {
+            loadedElements.forEach(el => discovered.add(el));
+        }
     }
 
     try {
@@ -301,9 +531,12 @@ function loadProgress() {
     // before this feature existed, or added some other way — is treated
     // as the OLDEST possible entry, per the explicit rule that ambiguous
     // elements should sink to the bottom of "Recent" sort, not land
-    // somewhere arbitrary in the middle.
+    // somewhere arbitrary in the middle. Tracked separately here because
+    // validateDiscoveryPlausibility() must NOT apply a strict order check
+    // to elements whose order was only ever guessed.
     const known = new Set(discoveryOrder);
     const unknownFirst = [...discovered].filter(el => !known.has(el));
+    reconciledUnknownElements = new Set(unknownFirst);
     discoveryOrder = [...unknownFirst, ...discoveryOrder];
 }
 
@@ -311,6 +544,7 @@ function resetProgress() {
     discovered.clear();
     BASE_ELEMENTS.forEach(el => discovered.add(el));
     discoveryOrder = [...BASE_ELEMENTS];
+    reconciledUnknownElements = new Set();
     first = null;
     lastDiscovered = null;
     if (lastDiscoveredTimer) {
@@ -319,6 +553,7 @@ function resetProgress() {
     }
     try {
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(SIGNATURE_KEY);
         localStorage.removeItem(ORDER_STORAGE_KEY);
     } catch (e) {
         console.warn("Could not clear saved progress:", e);
@@ -473,6 +708,7 @@ function makeElementTile(element) {
 
         const chosenFirst = first;
         const result = combine(chosenFirst, element);
+        recordComboTiming();
 
         const resultEl = document.getElementById("result");
         resultEl.textContent = result
@@ -1242,6 +1478,15 @@ function setupSearch() {
 // needs, since game.js sits at the end of <body> and everything it queries
 // by ID is already parsed by the time this script runs at all.
 window.addEventListener("DOMContentLoaded", async () => {
+    // Checked first, before anything else runs — this is what makes the
+    // lock survive a refresh. A refresh re-runs this whole handler, and
+    // this check is still the very first thing it does.
+    const anticheatState = loadAnticheatState();
+    if (anticheatState.penaltyUntil && Date.now() < anticheatState.penaltyUntil) {
+        showPenaltyLock(anticheatState.penaltyUntil);
+        return; // no combining, no saving, nothing else initializes until this clears
+    }
+
     loadProgress();
     loadSoundPreference();
     loadDeadEndCollapsePreference();
@@ -1259,6 +1504,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     await loadRecipes();
     updateRecipesStatusDisplay();
     renderOrphanReport();
+    validateDiscoveryPlausibility();
+    checkNativeFunctionsIntact();
+    setInterval(() => {
+        checkNativeFunctionsIntact();
+        validateDiscoveryPlausibility();
+    }, 30000); // cheap checks — a handful of toString() calls and one pass over discovered elements, negligible even on battery
 
     updateProgressDisplays();
     render();
@@ -1272,13 +1523,16 @@ window.addEventListener("DOMContentLoaded", async () => {
 
 // Safety net independent of how fast (or slow) the load actually is —
 // a bad connection on the visitor's end isn't something any amount of
-// optimizing here can promise around.
+// optimizing here can promise around. Suppressed entirely during an
+// active penalty lock, which has no skip by design.
 setTimeout(() => {
+    if (isPenaltyLocked) return;
     const skipBtn = document.getElementById("page-loader-skip");
     if (skipBtn) skipBtn.hidden = false;
 }, 5000);
 
 document.getElementById("page-loader-skip")?.addEventListener("click", () => {
+    if (isPenaltyLocked) return;
     document.getElementById("page-loader")?.classList.add("hidden");
 });
 
@@ -1286,3 +1540,5 @@ window.addEventListener("resize", () => {
     const graphWrap = document.getElementById("tree-graph-wrap");
     if (graphWrap && !graphWrap.hidden) renderGraph();
 });
+
+})();
