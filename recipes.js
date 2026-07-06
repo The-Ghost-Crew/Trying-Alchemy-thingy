@@ -1691,7 +1691,7 @@ recipe("hawaii", "old", "kingdom of hawaii");
 recipe("united states of america", "old", "thirteen colonies");
 recipe("keyboard", "human", "typist");
 recipe("typist", "speed", "speedtypist");
-recipe("letter", "letter", "word");
+recipe("letter (alphabet)", "letter (alphabet)", "word");
 recipe("word", "game", "wordgame");
 recipe("wordgame", "chain", "word-chain");
 recipe("word-chain", "japan", "shiritori");
