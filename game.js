@@ -96,7 +96,16 @@ async function loadRecipes({ forceFresh = false } = {}) {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             code = await res.text();
         }
-        (0, eval)(code); // indirect eval — runs in global scope so recipe(...) reaches the real function
+        // recipes.js is just a long list of recipe("a","b","c") calls. It
+        // used to run via indirect eval, which executes in global scope —
+        // that only worked because recipe() used to be a global. Phase 1
+        // made recipe() private along with everything else, which broke
+        // this without anyone noticing until now. Passing recipe in as a
+        // function PARAMETER instead means recipes.js's calls resolve to
+        // this local argument, not a global lookup — recipe() stays fully
+        // private, and recipes.js needs no changes at all.
+        const runRecipes = new Function("recipe", code);
+        runRecipes(recipe);
         recipesLoadStatus = { ok: true, time: new Date(), count: recipeList.length, error: null };
     } catch (e) {
         recipesLoadStatus = { ok: false, time: new Date(), count: recipeList.length, error: e.message };
