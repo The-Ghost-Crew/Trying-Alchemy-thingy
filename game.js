@@ -215,7 +215,14 @@ async function reloadRecipes() {
     treeDirty = true;
     graphLoadFailed = false;
     updateRecipesStatusDisplay();
-    renderOrphanReport();
+    try {
+        renderOrphanReport();
+    } catch (e) {
+        // A crash in here shouldn't be able to leave the rest of a reload
+        // half-applied — the recipe count/status above has already updated
+        // correctly by this point regardless of what happens next.
+        console.error("Orphan report failed:", e);
+    }
 }
 
 function setupRecipeReload() {
@@ -1364,11 +1371,23 @@ function setViewMode(mode) {
 // ---------- Backup / transfer ----------
 
 function encodeSave() {
-    return btoa(JSON.stringify([...discovered]));
+    // btoa() only accepts Latin-1 text — a single element name containing
+    // a curly apostrophe, an em dash, or any other character outside that
+    // range (e.g. "Hawai'i") throws and silently breaks export for the
+    // ENTIRE save, not just that one element. Encoding through UTF-8 bytes
+    // first means any Unicode character survives the round trip.
+    const json = JSON.stringify([...discovered]);
+    const bytes = new TextEncoder().encode(json);
+    let binary = "";
+    bytes.forEach(b => { binary += String.fromCharCode(b); });
+    return btoa(binary);
 }
 
 function decodeAndMerge(code) {
-    const parsed = JSON.parse(atob(code.trim()));
+    const binary = atob(code.trim());
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
+    const parsed = JSON.parse(json);
     if (!Array.isArray(parsed)) throw new Error("Not a valid backup code");
     let added = 0;
     parsed.forEach(el => {
@@ -1402,7 +1421,18 @@ function setupBackupControls() {
     };
 
     exportBtn?.addEventListener("click", async () => {
-        const code = encodeSave();
+        // Previously uncaught — if encodeSave() threw (as it silently did
+        // for any non-Latin-1 character), the click just appeared to do
+        // nothing at all, with no visible sign anything went wrong.
+        let code;
+        try {
+            code = encodeSave();
+        } catch (e) {
+            showStatus("Couldn't generate a backup code. Please let the developer know.");
+            console.error("encodeSave failed:", e);
+            return;
+        }
+
         if (codeBox) {
             codeBox.hidden = false;
             codeBox.value = code;
@@ -1576,12 +1606,39 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     await loadRecipes();
     updateRecipesStatusDisplay();
-    renderOrphanReport();
-    validateDiscoveryPlausibility();
-    checkNativeFunctionsIntact();
-    setInterval(() => {
-        checkNativeFunctionsIntact();
+
+    // Each wrapped independently — a bug in any ONE of these (say, an edge
+    // case only a much larger recipe set exposes) must not be able to take
+    // out the others, or worse, prevent render() and hiding the loading
+    // screen from ever running below. That used to all live in one
+    // unguarded sequence.
+    try {
+        renderOrphanReport();
+    } catch (e) {
+        console.error("Orphan report failed:", e);
+    }
+    try {
         validateDiscoveryPlausibility();
+    } catch (e) {
+        console.error("Plausibility check failed:", e);
+    }
+    try {
+        checkNativeFunctionsIntact();
+    } catch (e) {
+        console.error("Native function check failed:", e);
+    }
+
+    setInterval(() => {
+        try {
+            checkNativeFunctionsIntact();
+        } catch (e) {
+            console.error("Native function check failed:", e);
+        }
+        try {
+            validateDiscoveryPlausibility();
+        } catch (e) {
+            console.error("Plausibility check failed:", e);
+        }
     }, 30000); // cheap checks — a handful of toString() calls and one pass over discovered elements, negligible even on battery
 
     updateProgressDisplays();
