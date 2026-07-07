@@ -341,7 +341,12 @@ function recordStrike(type, detail) {
     state.strikes.push({ type, detail, time: now });
     state.strikes = state.strikes.filter(s => now - s.time <= STRIKE_WINDOW_MS);
 
-    console.warn(`[integrity] ${type}: ${detail}`);
+    // Deliberately vague: logging the exact type + detail here would hand
+    // anyone poking around a free readout of exactly which check fired and
+    // why, letting them iterate directly against it. A generic notice is
+    // enough for a legitimate player to know something happened, without
+    // handing over a debugging guide.
+    console.warn("[integrity] A check flagged this session.");
 
     const distinctTypes = new Set(state.strikes.map(s => s.type));
     if (distinctTypes.size >= STRIKE_TYPES_REQUIRED) {
@@ -367,6 +372,17 @@ function formatDuration(ms) {
 
 let isPenaltyLocked = false;
 
+function playPenaltyJingle() {
+    // A playful "wah wah wah waaaah" — the self-aware, universally
+    // recognized "oops" sound. The actual penalty is the wipe and the
+    // timer; this is meant to be funny, not another way to be mean about
+    // it. playTone() already no-ops internally if sound is muted.
+    playTone(392.0, 0.35, 0, 0.15); // G4
+    playTone(369.99, 0.35, 0.4, 0.15); // F#4
+    playTone(349.23, 0.35, 0.8, 0.15); // F4
+    playTone(329.63, 0.9, 1.2, 0.18); // E4 — held longer, the "waaaah"
+}
+
 function showPenaltyLock(penaltyUntil) {
     isPenaltyLocked = true;
     const loader = document.getElementById("page-loader");
@@ -384,6 +400,7 @@ function showPenaltyLock(penaltyUntil) {
         if (!countdownEl) return;
         if (remaining <= 0) {
             clearInterval(interval);
+            if (jingleInterval) clearInterval(jingleInterval);
             location.reload();
             return;
         }
@@ -391,6 +408,15 @@ function showPenaltyLock(penaltyUntil) {
     };
     tick();
     const interval = setInterval(tick, 1000);
+
+    // Only set up the repeating interval at all if sound is actually on —
+    // no point scheduling a no-op call every few seconds for an hour if
+    // it's just going to silently do nothing each time.
+    let jingleInterval = null;
+    if (soundEnabled) {
+        playPenaltyJingle();
+        jingleInterval = setInterval(playPenaltyJingle, 4000);
+    }
 }
 
 // Checks whether a discovered element could plausibly have been earned:
@@ -1477,10 +1503,49 @@ function setupSearch() {
 // fires as soon as the HTML itself is parsed, which is all this actually
 // needs, since game.js sits at the end of <body> and everything it queries
 // by ID is already parsed by the time this script runs at all.
+// ---------- Phase 3: casual-inspection friction ----------
+//
+// None of this stops a determined person — it can't, on a static site with
+// no server. It's aimed at the "someone on a forum told me to paste this"
+// pattern, which is a much closer match to "casual reverse engineering"
+// than blocking right-click ever was.
+
+console.log(
+    "%cStop.",
+    "color: #b5453f; font-size: 42px; font-weight: bold;"
+);
+console.log(
+    "%cThis console lets code run with full access to this page. If someone told you pasting something here would unlock elements or \"hack\" this game, that isn't true — it doesn't work that way, and code you don't understand could do things you don't expect.",
+    "font-size: 14px; color: #e8e4d8;"
+);
+console.log(
+    "%cIf you're actually curious how this works, the source is plain, readable JavaScript — view-source is a better place to look than pasting things here.",
+    "font-size: 12px; color: #8d92a8;"
+);
+
+// DevTools keyboard shortcuts, desktop only — this literally has no effect
+// on the iPhone this was tested on, since iOS has no such shortcuts at all.
+// The only way to inspect a page on iOS is remote debugging from a
+// connected Mac, which happens entirely outside the page and can't be
+// touched by anything running in it. Kept anyway since it costs nothing
+// and raises the bar by one click for casual desktop users specifically.
+document.addEventListener("keydown", event => {
+    const key = event.key.toLowerCase();
+    const isF12 = event.key === "F12";
+    const isInspectCombo = (event.ctrlKey || event.metaKey) && event.shiftKey && ["i", "j", "c"].includes(key);
+    const isViewSource = (event.ctrlKey || event.metaKey) && key === "u";
+
+    if (isF12 || isInspectCombo || isViewSource) {
+        event.preventDefault();
+    }
+});
+
 window.addEventListener("DOMContentLoaded", async () => {
     // Checked first, before anything else runs — this is what makes the
     // lock survive a refresh. A refresh re-runs this whole handler, and
     // this check is still the very first thing it does.
+    loadSoundPreference(); // must run before the penalty check below — showPenaltyLock plays a jingle and needs the player's actual saved preference, not the hardcoded default
+
     const anticheatState = loadAnticheatState();
     if (anticheatState.penaltyUntil && Date.now() < anticheatState.penaltyUntil) {
         showPenaltyLock(anticheatState.penaltyUntil);
@@ -1488,7 +1553,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
 
     loadProgress();
-    loadSoundPreference();
     loadDeadEndCollapsePreference();
     loadSortModePreference();
     setupTabs();
