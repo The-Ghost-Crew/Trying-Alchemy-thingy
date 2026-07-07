@@ -12,11 +12,19 @@
 
 const STORAGE_KEY = "alchemy_discovered_elements";
 const ORDER_STORAGE_KEY = "alchemy_discovery_order";
+const TIMESTAMPS_KEY = "alchemy_discovery_timestamps";
 
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
 const discovered = new Set(BASE_ELEMENTS);
 let discoveryOrder = [...BASE_ELEMENTS]; // oldest-first record of when each element was actually found
+// Deliberately separate from discoveryOrder, not folded into it — order can
+// be reconstructed after the fact by anyone reading the source; a genuine
+// history of WHEN things happened, spread across real wall-clock time,
+// can't be retroactively fabricated without either waiting that real time
+// or writing something far more elaborate than a one-shot script. This is
+// what a direct localStorage write can't produce for free.
+let discoveryTimestamps = Object.fromEntries(BASE_ELEMENTS.map(el => [el, 0]));
 
 const recipes = {};        // lookup: "a|b" -> result
 const recipeList = [];     // full list: { a, b, result }
@@ -498,6 +506,32 @@ function checkNativeFunctionsIntact() {
     }
 }
 
+// Genuine play necessarily produces a timestamp for every single
+// discovery, one at a time, as it happens. A direct-write exploit that
+// fabricates a large finished state in one shot has no reason to also
+// fabricate a believable timestamp for every entry — and the given
+// regression-test script didn't. A large bulk of discovered elements with
+// no timestamp at all, not explained by the legacy-save exemption, is
+// exactly the fingerprint of "this state was written, not played into
+// existence." Threshold is deliberately generous (15) so a handful of
+// genuinely ambiguous entries — a legacy save, a partial import — never
+// causes a false flag on their own.
+const UNTIMESTAMPED_BULK_THRESHOLD = 15;
+
+function validateDiscoveryTiming() {
+    let untimestampedCount = 0;
+
+    for (const el of discovered) {
+        if (BASE_ELEMENTS.includes(el)) continue;
+        if (reconciledUnknownElements.has(el)) continue; // legacy exemption — see loadProgress()
+        if (!(el in discoveryTimestamps)) untimestampedCount++;
+    }
+
+    if (untimestampedCount > UNTIMESTAMPED_BULK_THRESHOLD) {
+        recordStrike("timing", `${untimestampedCount} discovered elements have no recorded timestamp at all.`);
+    }
+}
+
 const recentComboTimestamps = [];
 const COMBO_WINDOW_SIZE = 6;
 const COMBO_WINDOW_MS = 1000;
@@ -521,10 +555,22 @@ function saveProgress() {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(elementsArr));
         localStorage.setItem(SIGNATURE_KEY, computeSignature(elementsArr));
         localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(discoveryOrder));
+        localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(discoveryTimestamps));
     } catch (e) {
         console.warn("Could not save progress:", e);
     }
 }
+
+// Threshold shared in spirit with UNTIMESTAMPED_BULK_THRESHOLD: a SMALL
+// number of elements with no recorded order is the expected, harmless
+// shape of a genuine pre-existing save upgrading to a newer version of
+// this feature. A LARGE fraction of the save falling into that same
+// "unknown, exempt from strict checks" bucket is no longer a small legacy
+// gap — it's the entire save being suspiciously untracked, which is
+// itself exactly the shape a fabricated save takes if it simply leaves
+// discoveryOrder sparse to dodge the plausibility/timing checks below.
+// That dodge is now evidence in its own right, not a free pass.
+const SPARSE_HISTORY_BULK_THRESHOLD = 15;
 
 function loadProgress() {
     let loadedElements = null;
@@ -545,16 +591,28 @@ function loadProgress() {
         const storedSignature = localStorage.getItem(SIGNATURE_KEY);
         const expectedSignature = computeSignature(loadedElements);
 
-        if (storedSignature !== null && storedSignature !== expectedSignature) {
-            // Don't grant progress that doesn't match its own signature —
-            // but a mismatch alone doesn't trigger the penalty. It could be
-            // real tampering, or it could be our own bug (a save-format
-            // change on our end would also cause this). One strike, not
-            // an automatic wipe.
-            recordStrike("signature", "Saved elements did not match their stored signature.");
-        } else {
-            loadedElements.forEach(el => discovered.add(el));
+        // A MISSING signature used to be silently trusted, as a
+        // backward-compatibility path for saves made before this system
+        // existed. That silent trust was exactly the hole a direct
+        // localStorage write walked through, since it never bothered to
+        // set one at all. Now any mismatch — missing or wrong — records a
+        // strike. The data is still granted provisionally either way;
+        // whether this becomes the real penalty is decided by
+        // corroboration with the other independent checks below, not by
+        // this one signal alone. This does mean every existing legitimate
+        // save gets exactly one harmless "signature" strike on its very
+        // first load under this version — saveProgress() is called again
+        // at the end of this function specifically to heal that
+        // immediately, so it can never accumulate or repeat.
+        if (storedSignature !== expectedSignature) {
+            recordStrike(
+                "signature",
+                storedSignature === null
+                    ? "No signature found for saved elements."
+                    : "Saved elements did not match their stored signature."
+            );
         }
+        loadedElements.forEach(el => discovered.add(el));
     }
 
     try {
@@ -569,23 +627,50 @@ function loadProgress() {
         console.warn("Could not load discovery order:", e);
     }
 
+    try {
+        const savedTimestamps = localStorage.getItem(TIMESTAMPS_KEY);
+        if (savedTimestamps) {
+            const parsedTimestamps = JSON.parse(savedTimestamps);
+            if (parsedTimestamps && typeof parsedTimestamps === "object" && !Array.isArray(parsedTimestamps)) {
+                discoveryTimestamps = parsedTimestamps;
+            }
+        }
+    } catch (e) {
+        console.warn("Could not load discovery timestamps:", e);
+    }
+
     // Anything discovered but missing from the order list — saves made
     // before this feature existed, or added some other way — is treated
     // as the OLDEST possible entry, per the explicit rule that ambiguous
     // elements should sink to the bottom of "Recent" sort, not land
     // somewhere arbitrary in the middle. Tracked separately here because
-    // validateDiscoveryPlausibility() must NOT apply a strict order check
-    // to elements whose order was only ever guessed.
+    // validateDiscoveryPlausibility() and validateDiscoveryTiming() must
+    // NOT apply strict checks to elements whose order/timing was only
+    // ever guessed.
     const known = new Set(discoveryOrder);
     const unknownFirst = [...discovered].filter(el => !known.has(el));
     reconciledUnknownElements = new Set(unknownFirst);
     discoveryOrder = [...unknownFirst, ...discoveryOrder];
+
+    if (unknownFirst.length > SPARSE_HISTORY_BULK_THRESHOLD) {
+        recordStrike(
+            "plausibility",
+            `${unknownFirst.length} discovered elements have no order history at all — too large to be an ordinary legacy gap.`
+        );
+    }
+
+    // Self-heal: whatever's now in memory gets a fresh, currently-valid
+    // signature and a complete timestamp/order record immediately, rather
+    // than waiting for the player's next discovery. A legitimate old save
+    // only ever sees this exactly once.
+    saveProgress();
 }
 
 function resetProgress() {
     discovered.clear();
     BASE_ELEMENTS.forEach(el => discovered.add(el));
     discoveryOrder = [...BASE_ELEMENTS];
+    discoveryTimestamps = Object.fromEntries(BASE_ELEMENTS.map(el => [el, 0]));
     reconciledUnknownElements = new Set();
     first = null;
     lastDiscovered = null;
@@ -597,6 +682,7 @@ function resetProgress() {
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(SIGNATURE_KEY);
         localStorage.removeItem(ORDER_STORAGE_KEY);
+        localStorage.removeItem(TIMESTAMPS_KEY);
     } catch (e) {
         console.warn("Could not clear saved progress:", e);
     }
@@ -764,6 +850,7 @@ function makeElementTile(element) {
         if (result && !discovered.has(result)) {
             discovered.add(result);
             discoveryOrder.push(result);
+            discoveryTimestamps[result] = Date.now();
             markJustDiscovered(result);
             saveProgress();
             treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
@@ -1390,15 +1477,18 @@ function decodeAndMerge(code) {
     const parsed = JSON.parse(json);
     if (!Array.isArray(parsed)) throw new Error("Not a valid backup code");
     let added = 0;
+    const importTime = Date.now();
     parsed.forEach(el => {
         if (typeof el === "string" && !discovered.has(el.toLowerCase())) {
             const lower = el.toLowerCase();
             discovered.add(lower);
             // A backup code has no timestamps, so true original discovery
-            // order can't survive the trip — treated as "found right now"
-            // on this device instead, which is an approximation worth
-            // knowing about if you rely on "Recent" sort after importing.
+            // order/time can't survive the trip — treated as "found right
+            // now" on this device instead. Still a real timestamp, though,
+            // so a legitimate import of a large set doesn't get mistaken
+            // for the untimestamped-bulk pattern a fabricated save shows.
             discoveryOrder.push(lower);
+            discoveryTimestamps[lower] = importTime;
             added++;
         }
     });
@@ -1623,6 +1713,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         console.error("Plausibility check failed:", e);
     }
     try {
+        validateDiscoveryTiming();
+    } catch (e) {
+        console.error("Timing check failed:", e);
+    }
+    try {
         checkNativeFunctionsIntact();
     } catch (e) {
         console.error("Native function check failed:", e);
@@ -1639,7 +1734,12 @@ window.addEventListener("DOMContentLoaded", async () => {
         } catch (e) {
             console.error("Plausibility check failed:", e);
         }
-    }, 30000); // cheap checks — a handful of toString() calls and one pass over discovered elements, negligible even on battery
+        try {
+            validateDiscoveryTiming();
+        } catch (e) {
+            console.error("Timing check failed:", e);
+        }
+    }, 30000); // cheap checks — a handful of toString() calls and a couple passes over discovered elements, negligible even on battery
 
     updateProgressDisplays();
     render();
