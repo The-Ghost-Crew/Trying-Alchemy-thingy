@@ -1873,7 +1873,7 @@ recipe("star wars", "ecumenopolis", "coruscant");
 recipe("nothing", "government", "anarchy");
 recipe("anarchy", "ideology", "anarchism");
 recipe("anarchism", "human", "anarchist");
-recipe("gold", "government", "gerontocracy");
+recipe("old", "government", "gerontocracy");
 recipe("gerontocracy", "human", "gerontocrat");
 recipe("anarchism", "feminism", "anarcha-feminism");
 recipe("anarcha-feminism", "human", "anarcha-feminist");
