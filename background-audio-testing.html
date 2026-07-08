@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<body style="background:#111;color:white;text-align:center;padding:50px">
+
+<h1>Alchemy Prototype</h1>
+<p>Click to begin</p>
+
+<script>
+
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+const master = ctx.createGain();
+master.gain.value = 0.35;
+master.connect(ctx.destination);
+
+
+// Reverb
+let convolver = ctx.createConvolver();
+let buffer = ctx.createBuffer(
+    2,
+    ctx.sampleRate * 4,
+    ctx.sampleRate
+);
+
+for(let c=0;c<2;c++){
+    let d=buffer.getChannelData(c);
+    for(let i=0;i<d.length;i++){
+        d[i]=(Math.random()*2-1)
+        *Math.pow(1-i/d.length,3);
+    }
+}
+
+convolver.buffer=buffer;
+
+let wet=ctx.createGain();
+wet.gain.value=.45;
+
+convolver.connect(wet);
+wet.connect(master);
+
+
+
+function playNote(freq,time,duration,type="sine",vol=.03){
+
+    let osc=ctx.createOscillator();
+    let gain=ctx.createGain();
+
+    osc.type=type;
+    osc.frequency.value=freq;
+
+    gain.gain.setValueAtTime(0,time);
+    gain.gain.linearRampToValueAtTime(vol,time+.4);
+    gain.gain.exponentialRampToValueAtTime(
+        .001,
+        time+duration
+    );
+
+    osc.connect(gain);
+
+    gain.connect(master);
+    gain.connect(convolver);
+
+    osc.start(time);
+    osc.stop(time+duration);
+}
+
+
+
+// Wind
+function playWind(time){
+
+    let noise=ctx.createBufferSource();
+
+    let b=ctx.createBuffer(
+        1,
+        ctx.sampleRate*10,
+        ctx.sampleRate
+    );
+
+    let d=b.getChannelData(0);
+
+    for(let i=0;i<d.length;i++)
+        d[i]=Math.random()*2-1;
+
+    noise.buffer=b;
+
+
+    let filter=ctx.createBiquadFilter();
+    filter.type="lowpass";
+    filter.frequency.value=900;
+
+
+    let gain=ctx.createGain();
+    gain.gain.value=.02;
+
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(master);
+
+    noise.start(time);
+}
+
+
+
+// Chord progression
+const chords=[
+
+[146.8,220,293.6],
+
+[174.6,261.6,349.2],
+
+[196,293.6,392],
+
+[146.8,220,329.6]
+
+];
+
+
+// Main melody
+const melody=[
+
+[293.6,0],
+[349.2,1],
+[392,2],
+[440,3.5],
+
+[392,5],
+[349,6],
+[329,7],
+
+[293,8],
+[261,9],
+[293,10],
+[349,11]
+
+];
+
+
+// Counter melody
+const counter=[
+
+[587,2],
+[523,4],
+[440,6],
+[392,8],
+[523,10]
+
+];
+
+
+
+function loop(){
+
+let t=ctx.currentTime+.2;
+
+
+// harmony
+
+chords.forEach((ch,i)=>{
+
+    ch.forEach(n=>{
+
+        playNote(
+            n,
+            t+i*3,
+            4,
+            "triangle",
+            .018
+        );
+
+    });
+
+});
+
+
+// strings
+
+playNote(146,t,12,"sine",.025);
+playNote(220,t,12,"triangle",.018);
+
+
+
+// choir layer
+
+playNote(293,t,10,"sine",.012);
+playNote(349,t,10,"sine",.012);
+
+
+
+// melody
+
+melody.forEach(n=>{
+
+playNote(
+n[0],
+t+n[1],
+1.4,
+"triangle",
+.035
+);
+
+});
+
+
+
+// counter melody
+
+counter.forEach(n=>{
+
+playNote(
+n[0],
+t+n[1],
+2,
+"sine",
+.015
+);
+
+});
+
+
+
+// music box arpeggio
+
+[
+659,783,880,1046
+].forEach((n,i)=>{
+
+playNote(
+n,
+t+12+i*.35,
+1.5,
+"sine",
+.02
+);
+
+});
+
+
+// magical bells
+
+playNote(1567,t+6,3,"sine",.018);
+playNote(1760,t+13,3,"sine",.015);
+
+
+// wind
+
+playWind(t);
+
+}
+
+
+
+document.onclick=async()=>{
+
+await ctx.resume();
+
+loop();
+
+setInterval(loop,16000);
+
+};
+
+</script>
+
+</body>
+</html>
