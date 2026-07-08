@@ -479,6 +479,40 @@
 
   .about-block p { color: var(--text-muted); line-height: 1.55; font-size: 0.92rem; margin: 0 0 8px; }
 
+  .about-block a { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+  .about-block a:hover { color: #e9c85f; }
+
+  .section-intro {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    margin: 0 0 20px;
+  }
+
+  .set-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .set-tile {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 6px 14px;
+    text-transform: capitalize;
+  }
+
+  .set-tile-done {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 162, 39, 0.1);
+  }
+
   .about-block code {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -571,6 +605,8 @@
   <div class="tabs">
     <button class="tab-button active" data-tab="lab">Elements</button>
     <button class="tab-button" data-tab="tree">Family Tree</button>
+    <button class="tab-button" data-tab="sets">Sets</button>
+    <button class="tab-button" data-tab="credits">Credits</button>
     <button class="tab-button" data-tab="about">About</button>
   </div>
 
@@ -634,6 +670,33 @@
           </button>
           <div id="tree-dead-list" class="dead-end-toggle-target"></div>
         </div>
+      </div>
+    </section>
+
+    <section id="tab-sets" class="tab-panel">
+      <p class="section-intro">New sets will be added over time. Each one is a goal to work toward — something to look forward to finishing.</p>
+      <div id="sets-container"></div>
+    </section>
+
+    <section id="tab-credits" class="tab-panel">
+      <div class="about-block">
+        <h2>Creator</h2>
+        <p><strong>Ghost :/</strong> — Discord: <code>no_where.ghost_002</code></p>
+      </div>
+
+      <div class="about-block">
+        <h2>Set assistance</h2>
+        <p class="tree-pending">No credits yet.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>Element art &amp; icons</h2>
+        <p class="tree-pending">No credits yet.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>Community</h2>
+        <p>Have an idea for a new element? <a href="https://discord.gg/PZ66BSfDS8" target="_blank" rel="noopener noreferrer">Ghost's Alchemy</a> is a Discord server for suggesting elements, run by <strong>chessguyyy</strong>.</p>
       </div>
     </section>
 
