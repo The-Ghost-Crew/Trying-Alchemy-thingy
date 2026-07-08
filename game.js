@@ -221,6 +221,7 @@ async function reloadRecipes() {
     updateProgressDisplays();
     render();
     treeDirty = true;
+    setsDirty = true;
     graphLoadFailed = false;
     updateRecipesStatusDisplay();
     try {
@@ -880,6 +881,7 @@ function makeElementTile(element) {
             markJustDiscovered(result);
             saveProgress();
             treeDirty = true; // rebuilt lazily next time the Family Tree tab is opened
+            setsDirty = true;
             graphLoadFailed = false;
             playDiscoverySound();
         } else if (!result) {
@@ -1573,6 +1575,7 @@ function setupBackupControls() {
             updateProgressDisplays();
             render();
             treeDirty = true;
+            setsDirty = true;
             graphLoadFailed = false;
             showStatus(added > 0 ? `Added ${added} element(s) from the backup code.` : "Nothing new in that code — you already had it all.");
         } catch {
@@ -1606,6 +1609,7 @@ function setupResetControl() {
         updateProgressDisplays();
         render();
         treeDirty = true;
+        setsDirty = true;
         graphLoadFailed = false;
 
         confirmBox.hidden = true;
@@ -1627,6 +1631,88 @@ function setupTreeSearch() {
     });
 }
 
+// ---------- Sets ----------
+//
+// Built as a list on purpose, not a one-off feature, since more sets are
+// planned. Adding a future set is just adding another entry here — nothing
+// about the rendering or tracking logic needs to change for it.
+
+// A few elements have more than one accepted spelling in common use.
+// Listed as arrays so either form counts, since it's unknown which
+// spelling any given recipes.js actually uses.
+const PERIODIC_TABLE_ITEMS = [
+    "hydrogen", "helium", "lithium", "beryllium", "boron", "carbon", "nitrogen",
+    "oxygen", "fluorine", "neon", "sodium", "magnesium", ["aluminium", "aluminum"],
+    "silicon", "phosphorus", ["sulfur", "sulphur"], "chlorine", "argon",
+    "potassium", "calcium", "scandium", "titanium", "vanadium", "chromium",
+    "manganese", "iron", "cobalt", "nickel", "copper", "zinc", "gallium",
+    "germanium", "arsenic", "selenium", "bromine", "krypton", "rubidium",
+    "strontium", "yttrium", "zirconium", "niobium", "molybdenum", "technetium",
+    "ruthenium", "rhodium", "palladium", "silver", "cadmium", "indium", "tin",
+    "antimony", "tellurium", "iodine", "xenon", ["caesium", "cesium"], "barium",
+    "lanthanum", "cerium", "praseodymium", "neodymium", "promethium",
+    "samarium", "europium", "gadolinium", "terbium", "dysprosium", "holmium",
+    "erbium", "thulium", "ytterbium", "lutetium", "hafnium", "tantalum",
+    ["tungsten", "wolfram"], "rhenium", "osmium", "iridium", "platinum",
+    "gold", "mercury", "thallium", "lead", "bismuth", "polonium", "astatine",
+    "radon", "francium", "radium", "actinium", "thorium", "protactinium",
+    "uranium", "neptunium", "plutonium", "americium", "curium", "berkelium",
+    "californium", "einsteinium", "fermium", "mendelevium", "nobelium",
+    "lawrencium", "rutherfordium", "dubnium", "seaborgium", "bohrium",
+    "hassium", "meitnerium", "darmstadtium", "roentgenium", "copernicium",
+    "nihonium", "flerovium", "moscovium", "livermorium", "tennessine",
+    "oganesson"
+];
+
+const SETS = [
+    { id: "periodic-table", name: "Periodic Table", items: PERIODIC_TABLE_ITEMS }
+];
+
+function itemIsComplete(item) {
+    const names = Array.isArray(item) ? item : [item];
+    return names.some(n => discovered.has(n));
+}
+
+function itemPrimaryName(item) {
+    return Array.isArray(item) ? item[0] : item;
+}
+
+let setsDirty = true;
+
+function renderSetsTab() {
+    const container = document.getElementById("sets-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    SETS.forEach(set => {
+        const card = document.createElement("div");
+        card.className = "tree-card";
+
+        const completed = set.items.filter(itemIsComplete).length;
+        const heading = document.createElement("h3");
+        heading.textContent = `${set.name} — ${completed} / ${set.items.length}`;
+        card.appendChild(heading);
+
+        const grid = document.createElement("div");
+        grid.className = "set-grid";
+        set.items.forEach(item => {
+            const tile = document.createElement("span");
+            tile.className = "set-tile" + (itemIsComplete(item) ? " set-tile-done" : "");
+            tile.textContent = itemPrimaryName(item);
+            grid.appendChild(tile);
+        });
+        card.appendChild(grid);
+
+        container.appendChild(card);
+    });
+}
+
+function ensureSetsUpToDate() {
+    if (!setsDirty) return;
+    renderSetsTab();
+    setsDirty = false;
+}
+
 function setupTabs() {
     const tabButtons = document.querySelectorAll(".tab-button");
     const panels = document.querySelectorAll(".tab-panel");
@@ -1638,6 +1724,7 @@ function setupTabs() {
             btn.classList.add("active");
             document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
             if (btn.dataset.tab === "tree") ensureTreeUpToDate();
+            if (btn.dataset.tab === "sets") ensureSetsUpToDate();
         });
     });
 
