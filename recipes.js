@@ -26,7 +26,7 @@ recipe("length", "time", "measurement");
 recipe("measurement", "length", "distance");
 recipe("horizon", "shape", "line");
 recipe("road", "road", "intersection");
-recipe("intersection", "measure", "angle");
+recipe("intersection", "measurement", "angle");
 recipe("table", "shape", "rectangle");
 recipe("rectangle", "angle", "right angle");
 recipe("right angle", "intersection", "perpendicular");
