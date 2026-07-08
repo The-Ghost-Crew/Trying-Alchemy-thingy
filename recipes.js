@@ -1955,7 +1955,7 @@ recipe("horizon", "table", "row");
 recipe("human", "minecraft", "villager");
 recipe("hydrogen", "cation", "proton");
 recipe("idea", "technology", "invention");
-recipe("india", "continent", "indian subcontinent");
+recipe("india", "land", "indian subcontinent");
 recipe("indian subcontinent", "philosophy", "subcontinent");
 recipe("internet", "relationship", "online relationship");
 recipe("invention", "human", "inventor");
