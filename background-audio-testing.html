@@ -143,23 +143,6 @@ function playStrings() {
 
 
 // ===============================
-// Start
-// ===============================
-
-document.addEventListener(
-    "click",
-    async () => {
-
-        await audio.resume();
-
-        playDrone();
-        playStrings();
-
-    },
-    { once: true }
-);
-
-// ===============================
 // Wind Ambience
 // ===============================
 
@@ -279,9 +262,196 @@ function animateWind() {
     }, 8000);
 }
 
+// ===============================
+// Music Box Instrument
+// ===============================
+
+function playMusicBox(freq, delay = 0) {
+
+    setTimeout(() => {
+
+        const now = audio.currentTime;
+
+        const osc = audio.createOscillator();
+        const harmonic = audio.createOscillator();
+
+        const gain = audio.createGain();
+
+        osc.type = "triangle";
+        harmonic.type = "sine";
+
+        osc.frequency.value = freq;
+        harmonic.frequency.value = freq * 2;
+
+
+        gain.gain.setValueAtTime(
+            0,
+            now
+        );
+
+        gain.gain.linearRampToValueAtTime(
+            0.035,
+            now + 0.03
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            now + 4
+        );
+
+
+        osc.connect(gain);
+        harmonic.connect(gain);
+
+        gain.connect(master);
+
+
+        osc.start(now);
+        harmonic.start(now);
+
+        osc.stop(now + 4);
+        harmonic.stop(now + 4);
+
+
+    }, delay);
+
+}
+
 
 // ===============================
-// Start Atmosphere
+// Crystal Chime
+// ===============================
+
+function playChime(freq) {
+
+    const osc = audio.createOscillator();
+    const gain = audio.createGain();
+
+
+    osc.type = "sine";
+    osc.frequency.value = freq;
+
+
+    const now = audio.currentTime;
+
+    gain.gain.setValueAtTime(
+        0.04,
+        now
+    );
+
+    gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        now + 8
+    );
+
+
+    osc.connect(gain);
+    gain.connect(master);
+
+
+    osc.start(now);
+    osc.stop(now + 8);
+
+}
+
+
+// ===============================
+// Ancient Melody
+// ===============================
+
+const ancientMelody = [
+
+    // Dorian inspired phrase
+
+    { note: 293.66, time: 0 },     // D
+    { note: 349.23, time: 1.2 },   // F
+    { note: 392.00, time: 2.6 },   // G
+    { note: 440.00, time: 4.2 },   // A
+
+    { note: 392.00, time: 6 },     // G
+    { note: 329.63, time: 7.5 },   // E
+    { note: 293.66, time: 9 },     // D
+
+    { note: 523.25, time: 12 },    // C
+    { note: 440.00, time: 13.5 },  // A
+    { note: 349.23, time: 15 },    // F
+
+];
+
+
+function playAncientMelody() {
+
+    const start = audio.currentTime;
+
+    ancientMelody.forEach(item => {
+
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+
+
+        osc.type = "triangle";
+        osc.frequency.value = item.note;
+
+
+        gain.gain.setValueAtTime(
+            0,
+            start + item.time
+        );
+
+        gain.gain.linearRampToValueAtTime(
+            0.025,
+            start + item.time + 0.2
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            start + item.time + 2
+        );
+
+
+        osc.connect(gain);
+        gain.connect(master);
+
+
+        osc.start(start + item.time);
+        osc.stop(start + item.time + 2);
+
+    });
+
+}
+
+
+// ===============================
+// Stage 3 Performance
+// ===============================
+
+function playMusicalLayer() {
+
+    playAncientMelody();
+
+
+    // Music box answers
+
+    playMusicBox(587.33, 3500);
+    playMusicBox(659.25, 9000);
+    playMusicBox(783.99, 13000);
+
+
+    // Rare magical chimes
+
+    setTimeout(() => {
+        playChime(1046.50);
+    }, 6000);
+
+
+    setTimeout(() => {
+        playChime(1318.51);
+    }, 14000);
+
+}
+
+    // ===============================
+// Start
 // ===============================
 
 document.addEventListener(
@@ -290,13 +460,15 @@ document.addEventListener(
 
         await audio.resume();
 
+        playDrone();
+        playStrings();
         createWind();
         playShimmer();
+        playMusicalLayer();
 
     },
     { once: true }
 );
-
     
 </script>
 
