@@ -159,6 +159,144 @@ document.addEventListener(
     { once: true }
 );
 
+// ===============================
+// Wind Ambience
+// ===============================
+
+function createWind() {
+
+    const bufferSize = audio.sampleRate * 10;
+    const buffer = audio.createBuffer(
+        1,
+        bufferSize,
+        audio.sampleRate
+    );
+
+    const data = buffer.getChannelData(0);
+
+    let last = 0;
+
+    // Brown noise
+    for (let i = 0; i < bufferSize; i++) {
+
+        const white = Math.random() * 2 - 1;
+
+        last = last + (0.02 * white);
+
+        data[i] = last * 3;
+    }
+
+
+    const source = audio.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+
+    const filter = audio.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 700;
+
+
+    const volume = audio.createGain();
+    volume.gain.value = 0.018;
+
+
+    source.connect(filter);
+    filter.connect(volume);
+    volume.connect(master);
+
+
+    source.start();
+}
+
+
+// ===============================
+// Magical Shimmer
+// ===============================
+
+function playShimmer() {
+
+    const notes = [
+        880,
+        1174.66,
+        1396.91,
+        1760
+    ];
+
+    notes.forEach((freq, index) => {
+
+        const osc = audio.createOscillator();
+        const gain = audio.createGain();
+
+        osc.type = "sine";
+        osc.frequency.value = freq;
+
+
+        const now = audio.currentTime;
+
+        gain.gain.setValueAtTime(
+            0,
+            now
+        );
+
+        gain.gain.linearRampToValueAtTime(
+            0.008,
+            now + 4 + index
+        );
+
+        gain.gain.exponentialRampToValueAtTime(
+            0.001,
+            now + 15
+        );
+
+
+        osc.connect(gain);
+        gain.connect(master);
+
+
+        osc.start(now);
+        osc.stop(now + 15);
+
+    });
+}
+
+
+// ===============================
+// Slowly Moving Air
+// ===============================
+
+function animateWind() {
+
+    const movement = setInterval(() => {
+
+        const amount =
+            0.012 +
+            Math.random() * 0.012;
+
+        // Finds the wind gain node if stored globally
+        // This will be expanded in later stages.
+
+    }, 8000);
+}
+
+
+// ===============================
+// Start Atmosphere
+// ===============================
+
+document.addEventListener(
+    "click",
+    async () => {
+
+        await audio.resume();
+
+        createWind();
+        playShimmer();
+
+    },
+    { once: true }
+);
+
     
 </script>
 
