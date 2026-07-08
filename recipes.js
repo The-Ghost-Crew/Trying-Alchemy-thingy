@@ -10,6 +10,7 @@ recipe("earth", "earth", "rock");
 recipe("rock", "fire", "lava");
 recipe("pool", "pool", "pond");
 recipe("pond", "pond", "lake");
+recipe("banana", "element", "potassium");
 recipe("lake", "lake", "bay");
 recipe("bay", "bay", "sea");
 recipe("sea", "sea", "ocean");
