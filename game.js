@@ -315,8 +315,8 @@ function isExhausted(el) {
 
 const SIGNATURE_KEY = "alchemy_save_signature";
 const ANTICHEAT_KEY = "alchemy_anticheat_state";
-const STRIKE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const STRIKE_TYPES_REQUIRED = 2; // distinct kinds of check, not just count
+const STRIKE_WINDOW_MS = 15 * 60 * 1000; // 15 minutes — extended from 10, more room for strikes to age out harmlessly
+const STRIKE_TYPES_REQUIRED = 2; // kept at 2 — raising this weakens protection against fabricated saves without addressing the actual source of false positives, which is the rate check specifically (loosened separately, below)
 const PENALTY_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 // Not a real secret — it ships in this public file and can be extracted by
@@ -380,6 +380,26 @@ function recordStrike(type, detail) {
     }
 }
 
+// Previously, an old strike only ever got cleaned up as a side effect of a
+// NEW strike happening to trigger the filter in recordStrike() above. A
+// single isolated flag with nothing after it was harmless either way (one
+// strike alone never triggers anything), but it would sit in storage
+// indefinitely rather than actually clearing. This runs it proactively —
+// a long stretch of clean play now visibly, actively "redeems" any old
+// flag instead of just leaving it inert.
+function pruneExpiredStrikes() {
+    const state = loadAnticheatState();
+    if (!state.strikes || state.strikes.length === 0) return;
+
+    const now = Date.now();
+    const before = state.strikes.length;
+    state.strikes = state.strikes.filter(s => now - s.time <= STRIKE_WINDOW_MS);
+
+    if (state.strikes.length !== before) {
+        saveAnticheatState(state);
+    }
+}
+
 function applyPenalty(state) {
     resetProgress();
     const penaltyUntil = Date.now() + PENALTY_DURATION_MS;
@@ -401,10 +421,12 @@ function playPenaltyJingle() {
     // recognized "oops" sound. The actual penalty is the wipe and the
     // timer; this is meant to be funny, not another way to be mean about
     // it. playTone() already no-ops internally if sound is muted.
-    playTone(392.0, 0.35, 0, 0.15); // G4
-    playTone(369.99, 0.35, 0.4, 0.15); // F#4
-    playTone(349.23, 0.35, 0.8, 0.15); // F4
-    playTone(329.63, 0.9, 1.2, 0.18); // E4 — held longer, the "waaaah"
+    // Gain boosted ~4x from the original 0.15/0.18 — still comfortably
+    // under 1.0, so no clipping/distortion, just genuinely audible now.
+    playTone(392.0, 0.35, 0, 0.6); // G4
+    playTone(369.99, 0.35, 0.4, 0.6); // F#4
+    playTone(349.23, 0.35, 0.8, 0.6); // F4
+    playTone(329.63, 0.9, 1.2, 0.72); // E4 — held longer, the "waaaah"
 }
 
 function showPenaltyLock(penaltyUntil) {
@@ -413,7 +435,11 @@ function showPenaltyLock(penaltyUntil) {
     if (!loader) return;
 
     loader.classList.remove("hidden");
+    // The spinning emblem was missing here entirely before — showPenaltyLock
+    // was replacing the loader's whole innerHTML with just text, silently
+    // dropping the animation that shows during normal loading. Included now.
     loader.innerHTML = `
+      ${loaderSVG(140)}
       <p id="page-loader-text">Progress reset — integrity check failed</p>
       <p id="penalty-detail">Multiple independent checks flagged this save, so progress has been cleared. You can play again in <span id="penalty-countdown"></span>.</p>
     `;
@@ -533,8 +559,8 @@ function validateDiscoveryTiming() {
 }
 
 const recentComboTimestamps = [];
-const COMBO_WINDOW_SIZE = 6;
-const COMBO_WINDOW_MS = 1000;
+const COMBO_WINDOW_SIZE = 10; // raised from 6 — 10 full combos means 20 taps
+const COMBO_WINDOW_MS = 900; // tightened from 1000 — together this requires ~45ms average per tap to trigger, well past fast-but-human territory
 
 function recordComboTiming() {
     const now = performance.now();
@@ -1738,6 +1764,11 @@ window.addEventListener("DOMContentLoaded", async () => {
             validateDiscoveryTiming();
         } catch (e) {
             console.error("Timing check failed:", e);
+        }
+        try {
+            pruneExpiredStrikes();
+        } catch (e) {
+            console.error("Strike pruning failed:", e);
         }
     }, 30000); // cheap checks — a handful of toString() calls and a couple passes over discovered elements, negligible even on battery
 
