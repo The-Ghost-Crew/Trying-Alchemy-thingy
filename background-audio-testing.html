@@ -9,466 +9,52 @@
 
 const audio = new (window.AudioContext || window.webkitAudioContext)();
 
-
-// ===============================
-// Cathedral Reverb
-// ===============================
-
-function createCathedralReverb() {
-    const convolver = audio.createConvolver();
-
-    const length = audio.sampleRate * 7; // 7 second decay
-    const impulse = audio.createBuffer(
-        2,
-        length,
-        audio.sampleRate
-    );
-
-    for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
-        const data = impulse.getChannelData(channel);
-
-        for (let i = 0; i < length; i++) {
-            const decay = Math.pow(1 - i / length, 3);
-            data[i] = (Math.random() * 2 - 1) * decay;
-        }
-    }
-
-    convolver.buffer = impulse;
-    return convolver;
-}
-
-const reverb = createCathedralReverb();
-
-const master = audio.createGain();
-master.gain.value = 0.5;
-
-master.connect(reverb);
-reverb.connect(audio.destination);
-
-
-// ===============================
-// Tone Generator
-// ===============================
-
-function createTone(
-    frequency,
-    type,
-    volume,
-    attack,
-    release
-) {
+function playTone(freq, start, duration, type = "triangle", volume = 0.03) {
     const osc = audio.createOscillator();
     const gain = audio.createGain();
 
     osc.type = type;
-    osc.frequency.value = frequency;
-
-    const now = audio.currentTime;
-
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(
-        volume,
-        now + attack
-    );
-
-    gain.gain.setValueAtTime(
-        volume,
-        now + attack + 0.1
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        now + attack + release
-    );
-
-    osc.connect(gain);
-    gain.connect(master);
-
-    osc.start(now);
-    osc.stop(now + attack + release);
-}
-
-
-// ===============================
-// Ancient Drone
-// ===============================
-
-function playDrone() {
-
-    // Deep D
-    createTone(
-        146.83,
-        "sine",
-        0.08,
-        3,
-        12
-    );
-
-    // Fifth A
-    createTone(
-        220,
-        "sine",
-        0.05,
-        4,
-        12
-    );
-}
-
-
-// ===============================
-// Layered Strings
-// ===============================
-
-function playStrings() {
-
-    const strings = [
-        293.66, // D
-        349.23, // F
-        440.00, // A
-        523.25  // C
-    ];
-
-    strings.forEach(freq => {
-
-        createTone(
-            freq,
-            "triangle",
-            0.025,
-            4,
-            15
-        );
-
-    });
-}
-
-
-// ===============================
-// Wind Ambience
-// ===============================
-
-function createWind() {
-
-    const bufferSize = audio.sampleRate * 10;
-    const buffer = audio.createBuffer(
-        1,
-        bufferSize,
-        audio.sampleRate
-    );
-
-    const data = buffer.getChannelData(0);
-
-    let last = 0;
-
-    // Brown noise
-    for (let i = 0; i < bufferSize; i++) {
-
-        const white = Math.random() * 2 - 1;
-
-        last = last + (0.02 * white);
-
-        data[i] = last * 3;
-    }
-
-
-    const source = audio.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-
-
-    const filter = audio.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 700;
-
-
-    const volume = audio.createGain();
-    volume.gain.value = 0.018;
-
-
-    source.connect(filter);
-    filter.connect(volume);
-    volume.connect(master);
-
-
-    source.start();
-}
-
-
-// ===============================
-// Magical Shimmer
-// ===============================
-
-function playShimmer() {
-
-    const notes = [
-        880,
-        1174.66,
-        1396.91,
-        1760
-    ];
-
-    notes.forEach((freq, index) => {
-
-        const osc = audio.createOscillator();
-        const gain = audio.createGain();
-
-        osc.type = "sine";
-        osc.frequency.value = freq;
-
-
-        const now = audio.currentTime;
-
-        gain.gain.setValueAtTime(
-            0,
-            now
-        );
-
-        gain.gain.linearRampToValueAtTime(
-            0.008,
-            now + 4 + index
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-            0.001,
-            now + 15
-        );
-
-
-        osc.connect(gain);
-        gain.connect(master);
-
-
-        osc.start(now);
-        osc.stop(now + 15);
-
-    });
-}
-
-
-// ===============================
-// Slowly Moving Air
-// ===============================
-
-function animateWind() {
-
-    const movement = setInterval(() => {
-
-        const amount =
-            0.012 +
-            Math.random() * 0.012;
-
-        // Finds the wind gain node if stored globally
-        // This will be expanded in later stages.
-
-    }, 8000);
-}
-
-// ===============================
-// Music Box Instrument
-// ===============================
-
-function playMusicBox(freq, delay = 0) {
-
-    setTimeout(() => {
-
-        const now = audio.currentTime;
-
-        const osc = audio.createOscillator();
-        const harmonic = audio.createOscillator();
-
-        const gain = audio.createGain();
-
-        osc.type = "triangle";
-        harmonic.type = "sine";
-
-        osc.frequency.value = freq;
-        harmonic.frequency.value = freq * 2;
-
-
-        gain.gain.setValueAtTime(
-            0,
-            now
-        );
-
-        gain.gain.linearRampToValueAtTime(
-            0.035,
-            now + 0.03
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-            0.001,
-            now + 4
-        );
-
-
-        osc.connect(gain);
-        harmonic.connect(gain);
-
-        gain.connect(master);
-
-
-        osc.start(now);
-        harmonic.start(now);
-
-        osc.stop(now + 4);
-        harmonic.stop(now + 4);
-
-
-    }, delay);
-
-}
-
-
-// ===============================
-// Crystal Chime
-// ===============================
-
-function playChime(freq) {
-
-    const osc = audio.createOscillator();
-    const gain = audio.createGain();
-
-
-    osc.type = "sine";
     osc.frequency.value = freq;
 
-
-    const now = audio.currentTime;
-
-    gain.gain.setValueAtTime(
-        0.04,
-        now
-    );
-
-    gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        now + 8
-    );
-
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(volume, start + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
     osc.connect(gain);
-    gain.connect(master);
+    gain.connect(audio.destination);
 
-
-    osc.start(now);
-    osc.stop(now + 8);
-
+    osc.start(start);
+    osc.stop(start + duration);
 }
 
-
-// ===============================
-// Ancient Melody
-// ===============================
-
-const ancientMelody = [
-
-    // Dorian inspired phrase
-
-    { note: 293.66, time: 0 },     // D
-    { note: 349.23, time: 1.2 },   // F
-    { note: 392.00, time: 2.6 },   // G
-    { note: 440.00, time: 4.2 },   // A
-
-    { note: 392.00, time: 6 },     // G
-    { note: 329.63, time: 7.5 },   // E
-    { note: 293.66, time: 9 },     // D
-
-    { note: 523.25, time: 12 },    // C
-    { note: 440.00, time: 13.5 },  // A
-    { note: 349.23, time: 15 },    // F
-
+const melody = [
+    { n: 293.66, t: 0.0, l: 0.8 },
+    { n: 349.23, t: 1.0, l: 0.6 },
+    { n: 392.00, t: 2.0, l: 0.9 },
+    { n: 440.00, t: 3.2, l: 0.7 },
+    { n: 392.00, t: 4.3, l: 0.8 },
+    { n: 349.23, t: 5.3, l: 0.8 },
+    { n: 329.63, t: 6.4, l: 0.7 },
+    { n: 293.66, t: 7.4, l: 1.2 }
 ];
 
+function playLoop() {
+    const now = audio.currentTime + 0.1;
 
-function playAncientMelody() {
+    playTone(146.83, now, 8.8, "sine", 0.02);
+    playTone(220.00, now, 8.8, "triangle", 0.012);
 
-    const start = audio.currentTime;
-
-    ancientMelody.forEach(item => {
-
-        const osc = audio.createOscillator();
-        const gain = audio.createGain();
-
-
-        osc.type = "triangle";
-        osc.frequency.value = item.note;
-
-
-        gain.gain.setValueAtTime(
-            0,
-            start + item.time
-        );
-
-        gain.gain.linearRampToValueAtTime(
-            0.025,
-            start + item.time + 0.2
-        );
-
-        gain.gain.exponentialRampToValueAtTime(
-            0.001,
-            start + item.time + 2
-        );
-
-
-        osc.connect(gain);
-        gain.connect(master);
-
-
-        osc.start(start + item.time);
-        osc.stop(start + item.time + 2);
-
+    melody.forEach(note => {
+        playTone(note.n, now + note.t, note.l, "triangle", 0.025);
     });
-
 }
 
+document.addEventListener("click", async () => {
+    await audio.resume();
+    playLoop();
+    setInterval(playLoop, 8800);
+}, { once: true });
 
-// ===============================
-// Stage 3 Performance
-// ===============================
-
-function playMusicalLayer() {
-
-    playAncientMelody();
-
-
-    // Music box answers
-
-    playMusicBox(587.33, 3500);
-    playMusicBox(659.25, 9000);
-    playMusicBox(783.99, 13000);
-
-
-    // Rare magical chimes
-
-    setTimeout(() => {
-        playChime(1046.50);
-    }, 6000);
-
-
-    setTimeout(() => {
-        playChime(1318.51);
-    }, 14000);
-
-}
-
-    // ===============================
-// Start
-// ===============================
-
-document.addEventListener(
-    "click",
-    async () => {
-
-        await audio.resume();
-
-        playDrone();
-        playStrings();
-        createWind();
-        playShimmer();
-        playMusicalLayer();
-
-    },
-    { once: true }
-);
     
 </script>
 
