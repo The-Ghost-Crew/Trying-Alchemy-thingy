@@ -806,21 +806,30 @@ function playMusicTone(freq, start, duration, type, volume) {
 // plain minor scale — Dorian's natural (not flattened) 6th is what gives
 // modal/medieval-sounding music its particular character, and it's the
 // difference between "old" and merely "sad."
-const AMBIENT_LOOP_DURATION_MS = 29500; // slightly longer than the ~29s of scheduled content, so the last note fully decays before looping
+//
+// Phrase B previously started at t=16.0 while phrase A's last note ended
+// around t=9.5 — a genuine 6.5s dead zone with nothing but the quiet drone
+// underneath, which is exactly the "silence" being heard. Phrase B is
+// shifted 6s earlier here, right after phrase A settles, closing that gap
+// instead of just turning something up to mask it.
+const AMBIENT_LOOP_DURATION_MS = 23500; // matches the tightened ~22.85s of content, small clean tail before looping
+
+let musicVolume = 1.0; // multiplier applied to every note below, controlled by the volume slider
 
 function playAmbientLoop() {
     if (!musicEnabled) return;
     const ctx = getAudioCtx();
     if (!ctx) return;
     const now = ctx.currentTime + 0.1;
+    const v = gain => gain * musicVolume;
 
     // Drone: open fifth (D-A) under phrase A, shifting to an open fourth
-    // (D-G) under phrase B — one small harmonic movement across the whole
-    // loop, rather than one static chord droning for 30 seconds straight.
-    playMusicTone(146.83, now, 16, "sine", 0.05); // D3
-    playMusicTone(220.0, now, 16, "triangle", 0.03); // A3
-    playMusicTone(146.83, now + 16, 15, "sine", 0.05); // D3
-    playMusicTone(196.0, now + 16, 15, "triangle", 0.03); // G3
+    // (D-G) under phrase B — one small harmonic movement across the loop,
+    // rather than one static chord droning the whole time.
+    playMusicTone(146.83, now, 10, "sine", v(0.05)); // D3
+    playMusicTone(220.0, now, 10, "triangle", v(0.03)); // A3
+    playMusicTone(146.83, now + 10, 14, "sine", v(0.05)); // D3
+    playMusicTone(196.0, now + 10, 14, "triangle", v(0.03)); // G3
 
     // Phrase A — the original contemplative stepwise line. Left musically
     // intact, since it's specifically what already sounded right.
@@ -835,34 +844,35 @@ function playAmbientLoop() {
         { n: 293.66, t: 8.1, l: 1.4 } // D4 — settles
     ];
 
-    // Phrase B — new: rises past phrase A's range, uses Dorian's natural
-    // 6th (B) and the 7th (C) on the way up, peaks on D5, then descends
-    // back to the tonic. This is the actual "more elements, better music
-    // theory" fix — real contrast instead of one repeating 8-note cell.
+    // Phrase B — starts at t=10.0 now (a natural half-second breath after
+    // phrase A, not a 6.5s void). Rises past phrase A's range, uses
+    // Dorian's natural 6th (B) and 7th (C) on the way up, peaks on D5,
+    // then descends back to the tonic.
     const phraseB = [
-        { n: 440.0, t: 16.0, l: 0.8 }, // A4
-        { n: 493.88, t: 17.2, l: 0.7 }, // B4 — Dorian 6th
-        { n: 523.25, t: 18.3, l: 0.9 }, // C5
-        { n: 587.33, t: 19.6, l: 1.0 }, // D5 — peak of the whole phrase
-        { n: 523.25, t: 21.0, l: 0.8 }, // C5
-        { n: 493.88, t: 22.1, l: 0.8 }, // B4
-        { n: 440.0, t: 23.2, l: 0.8 }, // A4
-        { n: 392.0, t: 24.4, l: 0.8 }, // G4
-        { n: 349.23, t: 25.6, l: 0.9 }, // F4
-        { n: 293.66, t: 26.9, l: 1.8 } // D4 — resolves home, held longest
+        { n: 440.0, t: 10.0, l: 0.8 }, // A4
+        { n: 493.88, t: 11.2, l: 0.7 }, // B4 — Dorian 6th
+        { n: 523.25, t: 12.3, l: 0.9 }, // C5
+        { n: 587.33, t: 13.6, l: 1.0 }, // D5 — peak of the whole phrase
+        { n: 523.25, t: 15.0, l: 0.8 }, // C5
+        { n: 493.88, t: 16.1, l: 0.8 }, // B4
+        { n: 440.0, t: 17.2, l: 0.8 }, // A4
+        { n: 392.0, t: 18.4, l: 0.8 }, // G4
+        { n: 349.23, t: 19.6, l: 0.9 }, // F4
+        { n: 293.66, t: 20.9, l: 1.8 } // D4 — resolves home, held longest
     ];
 
-    phraseA.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", 0.045));
-    phraseB.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", 0.045));
+    phraseA.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", v(0.045)));
+    phraseB.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", v(0.045)));
 
     // Sparse high shimmer — different register and timbre from the main
     // melody, meant to read as a faint magical glint rather than add to
     // the melodic line itself.
-    playMusicTone(587.33, now + 8.3, 0.5, "sine", 0.02); // D5, as phrase A settles
-    playMusicTone(880.0, now + 19.8, 0.4, "sine", 0.018); // A5, at phrase B's peak
+    playMusicTone(587.33, now + 8.3, 0.5, "sine", v(0.02)); // D5, as phrase A settles
+    playMusicTone(880.0, now + 13.8, 0.4, "sine", v(0.018)); // A5, at phrase B's peak
 }
 
 const MUSIC_STORAGE_KEY = "alchemy_music_enabled";
+const MUSIC_VOLUME_KEY = "alchemy_music_volume";
 let musicEnabled = true; // on by default — "can be disabled" implies opt-out, not opt-in
 let musicLoopInterval = null;
 
@@ -873,12 +883,36 @@ function loadMusicPreference() {
     } catch (e) {
         console.warn("Could not load music preference:", e);
     }
+    try {
+        const savedVolume = localStorage.getItem(MUSIC_VOLUME_KEY);
+        if (savedVolume !== null) {
+            const parsed = parseFloat(savedVolume);
+            if (!Number.isNaN(parsed)) musicVolume = Math.min(1, Math.max(0, parsed));
+        }
+    } catch (e) {
+        console.warn("Could not load music volume:", e);
+    }
 }
 
-function startMusic() {
+// Real bug, not a tuning issue: ctx.resume() is asynchronous, and
+// ctx.currentTime does not advance while a context is suspended. The
+// previous version fired resume() and immediately scheduled notes against
+// ctx.currentTime in the same synchronous tick, before resume() had
+// actually completed — scheduling everything against a stale, frozen time
+// reference. Awaiting it first, exactly like the working reference script
+// did, is the actual fix.
+async function startMusic() {
     if (musicLoopInterval) return; // already running
     const ctx = getAudioCtx();
-    if (ctx && ctx.state === "suspended") ctx.resume();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+        try {
+            await ctx.resume();
+        } catch (e) {
+            console.warn("Could not resume audio context:", e);
+            return;
+        }
+    }
     playAmbientLoop();
     musicLoopInterval = setInterval(playAmbientLoop, AMBIENT_LOOP_DURATION_MS);
 }
@@ -888,7 +922,7 @@ function stopMusic() {
         clearInterval(musicLoopInterval);
         musicLoopInterval = null;
     }
-    // Notes already scheduled within the current ~29s loop will still play
+    // Notes already scheduled within the current ~23.5s loop will still play
     // out to completion — Web Audio scheduling can't retroactively cancel
     // oscillators once started. This only stops the NEXT loop from
     // starting. Worth knowing if instant cutoff ever matters more than a
@@ -930,6 +964,29 @@ function setupMusicToggle() {
         updateLabel();
         if (musicEnabled) startMusic();
         else stopMusic();
+    });
+}
+
+function setupMusicVolumeSlider() {
+    const slider = document.getElementById("music-volume");
+    const label = document.getElementById("music-volume-label");
+    if (!slider) return;
+
+    slider.value = Math.round(musicVolume * 100);
+    if (label) label.textContent = `${slider.value}%`;
+
+    // Live-updates the multiplier used by the NEXT scheduled loop. Already
+    // in-flight notes from the current loop keep whatever volume they were
+    // scheduled with — same reasoning as stopMusic() not cutting off notes
+    // already committed to the audio graph.
+    slider.addEventListener("input", () => {
+        musicVolume = Number(slider.value) / 100;
+        if (label) label.textContent = `${slider.value}%`;
+        try {
+            localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+        } catch (e) {
+            console.warn("Could not save music volume:", e);
+        }
     });
 }
 
@@ -1970,6 +2027,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupResetControl();
     setupSoundToggle();
     setupMusicToggle();
+    setupMusicVolumeSlider();
     armFirstInteractionMusicStart();
     setupDeadEndToggle();
     setupSortToggle();
