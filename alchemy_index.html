@@ -639,11 +639,28 @@
     border-radius: 8px;
     padding: 18px;
     background: rgba(181, 69, 63, 0.06);
+    transition: padding 0.15s ease, border-width 0.15s ease, background 0.15s ease;
   }
 
-  .ai-disclosure h2 {
-    color: #e0a8a4;
-    font-size: 1.4rem;
+  .ai-disclosure .section-toggle {
+    font-size: 0.85rem;
+    padding: 0;
+    margin-bottom: 4px;
+  }
+
+  .ai-disclosure:not(.collapsed) .section-toggle { margin-bottom: 12px; }
+
+  #ai-disclosure-body { overflow: hidden; }
+
+  /* Once read and moved to the bottom, this shrinks to a thin single-line
+     row instead of the full prominent card — the whole point of moving it
+     was to stop it eating the screen, so it needs to actually look small,
+     not just relocate while staying huge. */
+  .ai-disclosure.collapsed {
+    border-width: 1px;
+    border-color: var(--red-soft);
+    background: none;
+    padding: 10px 14px;
   }
 
   .ai-disclosure p {
@@ -805,7 +822,10 @@
 
     <section id="tab-credits" class="tab-panel">
       <div class="about-block ai-disclosure" id="ai-disclosure">
-        <h2>A Note on AI</h2>
+        <button id="ai-disclosure-toggle" class="section-toggle" type="button">
+          <span class="chevron">▾</span> A Note on AI
+        </button>
+        <div id="ai-disclosure-body">
         <p>I dislike AI usage in creative and coding projects. I want to say that plainly before anything else. But I did use AI to help build this website, and I'd rather tell you directly than have you find out and feel misled. If you don't want to play something built with AI involved, I understand completely — you're free to close this tab. There are no ads here and I make no money from this project. This is honesty, not a pitch.</p>
 
         <p>The way I used it isn't what you might assume. I didn't sit down and tell an AI "build me an alchemy game, add this feature, add that feature" and let it invent the thing. That's not what happened here.</p>
@@ -834,6 +854,7 @@
         <p>Thank you for reading this far. If you're still here — welcome. Every element in this game is human-made, and I hope you enjoy it. If this changes how you feel about playing, that's completely fine too. Close the tab, go play Little Alchemy instead, no hard feelings. Though if you dislike AI but you're playing Infinite Craft — that's a little bit of an interesting contradiction, isn't it?</p>
 
         <button id="ai-notice-ack" type="button">I've read this</button>
+        </div>
       </div>
 
       <div class="about-block">
