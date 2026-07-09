@@ -271,6 +271,7 @@
   }
 
   .sound-toggle.muted { color: var(--text-muted); opacity: 0.7; }
+  .sound-toggle:disabled { opacity: 0.5; cursor: default; }
 
   .volume-row {
     display: flex;
@@ -812,6 +813,13 @@
   </div>
 </main>
 
-<script src="game.js"></script>
+<script>
+  // game.js itself was never cache-busted, unlike recipes.js — meaning a
+  // fix shipped here could sit in a visitor's browser cache indefinitely
+  // and never actually reach them. document.write keeps this synchronous
+  // and in-order, which game.js's DOM-dependent code relies on, unlike the
+  // async fetch used for recipes.js.
+  document.write('<script src="game.js?v=' + Date.now() + '"><\/script>');
+</script>
 </body>
 </html>
