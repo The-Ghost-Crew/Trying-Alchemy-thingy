@@ -901,20 +901,31 @@ function loadMusicPreference() {
 // actually completed — scheduling everything against a stale, frozen time
 // reference. Awaiting it first, exactly like the working reference script
 // did, is the actual fix.
+let musicStartInFlight = false; // closes a real race: the old check-then-await-then-set pattern left a window where rapid toggling could start multiple independent loops
+
 async function startMusic() {
-    if (musicLoopInterval) return; // already running
-    const ctx = getAudioCtx();
-    if (!ctx) return;
-    if (ctx.state === "suspended") {
-        try {
-            await ctx.resume();
-        } catch (e) {
-            console.warn("Could not resume audio context:", e);
-            return;
+    if (musicLoopInterval || musicStartInFlight) return; // already running, or another start is already in progress
+    musicStartInFlight = true;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") {
+            try {
+                await ctx.resume();
+            } catch (e) {
+                console.warn("Could not resume audio context:", e);
+                return;
+            }
         }
+        // Re-checked here on purpose: if the player toggled music off while
+        // this was waiting on the context to resume, honor that instead of
+        // starting anyway.
+        if (!musicEnabled) return;
+        playAmbientLoop();
+        musicLoopInterval = setInterval(playAmbientLoop, AMBIENT_LOOP_DURATION_MS);
+    } finally {
+        musicStartInFlight = false;
     }
-    playAmbientLoop();
-    musicLoopInterval = setInterval(playAmbientLoop, AMBIENT_LOOP_DURATION_MS);
 }
 
 function stopMusic() {
@@ -964,6 +975,14 @@ function setupMusicToggle() {
         updateLabel();
         if (musicEnabled) startMusic();
         else stopMusic();
+
+        // Simple UI-level guard alongside the deeper fix in startMusic()
+        // itself — stops literal rapid double-taps from firing two click
+        // events before the first one's even been processed.
+        btn.disabled = true;
+        setTimeout(() => {
+            btn.disabled = false;
+        }, 250);
     });
 }
 
