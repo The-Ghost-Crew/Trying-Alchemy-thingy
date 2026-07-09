@@ -257,6 +257,20 @@
     background: rgba(181, 69, 63, 0.12);
   }
 
+  /* Same blue already used for "water" and connectivity in the Family
+     Tree graph — reused here rather than introducing a new color, so
+     "blue means combinable" stays consistent across the whole app. */
+  .element-tile.hintable {
+    border-color: #5b8fb0;
+    box-shadow: 0 0 0 1px rgba(91, 143, 176, 0.35);
+  }
+
+  .element-tile.hintable.selected {
+    border-color: #5b8fb0;
+    color: #5b8fb0;
+    background: rgba(91, 143, 176, 0.12);
+  }
+
   .sound-toggle {
     display: block;
     margin: 0 auto 12px;
@@ -742,6 +756,12 @@
           <input type="range" id="music-volume" min="0" max="100" step="5" value="100">
           <span id="music-volume-label">100%</span>
         </div>
+      </div>
+
+      <div class="about-block">
+        <h2>Hint Mode</h2>
+        <p>Outlines any element that can combine with something already in your inventory right now, and moves those to the top of the Elements list. Meant to smooth out the grind, not to spoil what the result actually is.</p>
+        <button id="hint-mode-toggle" class="sound-toggle" type="button">Hint Mode: Off</button>
       </div>
 
       <div class="about-block">
