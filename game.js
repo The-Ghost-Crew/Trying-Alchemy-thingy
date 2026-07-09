@@ -767,6 +767,172 @@ function playTone(freq, duration, delay, gainValue) {
     }
 }
 
+// ---------- Background music ----------
+//
+// A separate tone scheduler from playTone() above, on purpose. playTone()
+// is tuned for short percussive SFX (discovery chime, penalty jingle) —
+// instant attack, quick decay. Sustained musical notes want a soft linear
+// attack before that same exponential decay, so this gets its own
+// function rather than overloading playTone() for two different jobs.
+function playMusicTone(freq, start, duration, type, volume) {
+    if (!soundEnabled || !musicEnabled) return;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + duration + 0.05);
+    } catch (e) {
+        console.warn("Music playback failed:", e);
+    }
+}
+
+// D3 + A3 is an open fifth — the same interval a hurdy-gurdy or bagpipe
+// drone uses, which is exactly why it reads as "archaic" rather than just
+// "quiet background hum." Kept from the original test, since it was
+// already the right instinct. The whole melody sits in D Dorian, not a
+// plain minor scale — Dorian's natural (not flattened) 6th is what gives
+// modal/medieval-sounding music its particular character, and it's the
+// difference between "old" and merely "sad."
+const AMBIENT_LOOP_DURATION_MS = 29500; // slightly longer than the ~29s of scheduled content, so the last note fully decays before looping
+
+function playAmbientLoop() {
+    if (!musicEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime + 0.1;
+
+    // Drone: open fifth (D-A) under phrase A, shifting to an open fourth
+    // (D-G) under phrase B — one small harmonic movement across the whole
+    // loop, rather than one static chord droning for 30 seconds straight.
+    playMusicTone(146.83, now, 16, "sine", 0.05); // D3
+    playMusicTone(220.0, now, 16, "triangle", 0.03); // A3
+    playMusicTone(146.83, now + 16, 15, "sine", 0.05); // D3
+    playMusicTone(196.0, now + 16, 15, "triangle", 0.03); // G3
+
+    // Phrase A — the original contemplative stepwise line. Left musically
+    // intact, since it's specifically what already sounded right.
+    const phraseA = [
+        { n: 293.66, t: 0.0, l: 0.9 }, // D4
+        { n: 349.23, t: 1.1, l: 0.7 }, // F4
+        { n: 392.0, t: 2.2, l: 1.0 }, // G4
+        { n: 440.0, t: 3.5, l: 0.8 }, // A4
+        { n: 392.0, t: 4.7, l: 0.9 }, // G4
+        { n: 349.23, t: 5.8, l: 0.9 }, // F4
+        { n: 329.63, t: 7.0, l: 0.8 }, // E4
+        { n: 293.66, t: 8.1, l: 1.4 } // D4 — settles
+    ];
+
+    // Phrase B — new: rises past phrase A's range, uses Dorian's natural
+    // 6th (B) and the 7th (C) on the way up, peaks on D5, then descends
+    // back to the tonic. This is the actual "more elements, better music
+    // theory" fix — real contrast instead of one repeating 8-note cell.
+    const phraseB = [
+        { n: 440.0, t: 16.0, l: 0.8 }, // A4
+        { n: 493.88, t: 17.2, l: 0.7 }, // B4 — Dorian 6th
+        { n: 523.25, t: 18.3, l: 0.9 }, // C5
+        { n: 587.33, t: 19.6, l: 1.0 }, // D5 — peak of the whole phrase
+        { n: 523.25, t: 21.0, l: 0.8 }, // C5
+        { n: 493.88, t: 22.1, l: 0.8 }, // B4
+        { n: 440.0, t: 23.2, l: 0.8 }, // A4
+        { n: 392.0, t: 24.4, l: 0.8 }, // G4
+        { n: 349.23, t: 25.6, l: 0.9 }, // F4
+        { n: 293.66, t: 26.9, l: 1.8 } // D4 — resolves home, held longest
+    ];
+
+    phraseA.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", 0.045));
+    phraseB.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", 0.045));
+
+    // Sparse high shimmer — different register and timbre from the main
+    // melody, meant to read as a faint magical glint rather than add to
+    // the melodic line itself.
+    playMusicTone(587.33, now + 8.3, 0.5, "sine", 0.02); // D5, as phrase A settles
+    playMusicTone(880.0, now + 19.8, 0.4, "sine", 0.018); // A5, at phrase B's peak
+}
+
+const MUSIC_STORAGE_KEY = "alchemy_music_enabled";
+let musicEnabled = true; // on by default — "can be disabled" implies opt-out, not opt-in
+let musicLoopInterval = null;
+
+function loadMusicPreference() {
+    try {
+        const saved = localStorage.getItem(MUSIC_STORAGE_KEY);
+        if (saved !== null) musicEnabled = saved === "true";
+    } catch (e) {
+        console.warn("Could not load music preference:", e);
+    }
+}
+
+function startMusic() {
+    if (musicLoopInterval) return; // already running
+    const ctx = getAudioCtx();
+    if (ctx && ctx.state === "suspended") ctx.resume();
+    playAmbientLoop();
+    musicLoopInterval = setInterval(playAmbientLoop, AMBIENT_LOOP_DURATION_MS);
+}
+
+function stopMusic() {
+    if (musicLoopInterval) {
+        clearInterval(musicLoopInterval);
+        musicLoopInterval = null;
+    }
+    // Notes already scheduled within the current ~29s loop will still play
+    // out to completion — Web Audio scheduling can't retroactively cancel
+    // oscillators once started. This only stops the NEXT loop from
+    // starting. Worth knowing if instant cutoff ever matters more than a
+    // clean fade-out does.
+}
+
+// Browsers won't play audio until a real user gesture happens on the
+// page — this listens for the very first one, page-wide, and starts music
+// then if it's enabled. Matches the pattern already proven to work in
+// testing, rather than hoping ctx.resume() opportunistically succeeds on
+// its own near page load.
+function armFirstInteractionMusicStart() {
+    const tryStart = () => {
+        if (musicEnabled) startMusic();
+        document.removeEventListener("click", tryStart);
+        document.removeEventListener("touchstart", tryStart);
+    };
+    document.addEventListener("click", tryStart, { once: true });
+    document.addEventListener("touchstart", tryStart, { once: true });
+}
+
+function setupMusicToggle() {
+    const btn = document.getElementById("music-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+        btn.classList.toggle("muted", !musicEnabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        musicEnabled = !musicEnabled;
+        try {
+            localStorage.setItem(MUSIC_STORAGE_KEY, String(musicEnabled));
+        } catch (e) {
+            console.warn("Could not save music preference:", e);
+        }
+        updateLabel();
+        if (musicEnabled) startMusic();
+        else stopMusic();
+    });
+}
+
 function playDiscoverySound() {
     playTone(523.25, 0.12, 0, 0.18);    // C5
     playTone(783.99, 0.16, 0.09, 0.18); // G5
@@ -1787,11 +1953,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     // lock survive a refresh. A refresh re-runs this whole handler, and
     // this check is still the very first thing it does.
     loadSoundPreference(); // must run before the penalty check below — showPenaltyLock plays a jingle and needs the player's actual saved preference, not the hardcoded default
+    loadMusicPreference();
 
     const anticheatState = loadAnticheatState();
     if (anticheatState.penaltyUntil && Date.now() < anticheatState.penaltyUntil) {
         showPenaltyLock(anticheatState.penaltyUntil);
-        return; // no combining, no saving, nothing else initializes until this clears
+        return; // no combining, no saving, nothing else initializes until this clears — including background music, which only makes sense during normal play
     }
 
     loadProgress();
@@ -1802,6 +1969,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupBackupControls();
     setupResetControl();
     setupSoundToggle();
+    setupMusicToggle();
+    armFirstInteractionMusicStart();
     setupDeadEndToggle();
     setupSortToggle();
     setupRecipeReload();
