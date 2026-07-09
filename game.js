@@ -1303,6 +1303,49 @@ function setupHintModeToggle() {
     });
 }
 
+const AI_NOTICE_KEY = "alchemy_ai_notice_read";
+let aiNoticeRead = false;
+
+function loadAiNoticePreference() {
+    try {
+        const saved = localStorage.getItem(AI_NOTICE_KEY);
+        if (saved === "true") aiNoticeRead = true;
+    } catch (e) {
+        console.warn("Could not load AI notice preference:", e);
+    }
+}
+
+function updateCreditsBadge() {
+    const badge = document.getElementById("credits-badge");
+    if (badge) badge.hidden = aiNoticeRead;
+}
+
+function setupAiNoticeAck() {
+    updateCreditsBadge();
+
+    const btn = document.getElementById("ai-notice-ack");
+    if (!btn) return;
+
+    const updateButton = () => {
+        btn.textContent = aiNoticeRead ? "Read" : "I've read this";
+        btn.classList.toggle("acknowledged", aiNoticeRead);
+    };
+    updateButton();
+
+    btn.addEventListener("click", () => {
+        if (aiNoticeRead) return; // already acknowledged, nothing to toggle back
+        aiNoticeRead = true;
+        try {
+            localStorage.setItem(AI_NOTICE_KEY, "true");
+        } catch (e) {
+            console.warn("Could not save AI notice preference:", e);
+        }
+        updateButton();
+        updateCreditsBadge();
+    });
+}
+
+
 function setupSortToggle() {
     const buttons = document.querySelectorAll(".sort-toggle");
     buttons.forEach(btn => btn.classList.toggle("active", btn.dataset.sort === sortMode));
@@ -2181,6 +2224,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     loadDeadEndCollapsePreference();
     loadSortModePreference();
     loadHintModePreference();
+    loadAiNoticePreference();
     setupTabs();
     setupSearch();
     setupBackupControls();
@@ -2192,6 +2236,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupDeadEndToggle();
     setupSortToggle();
     setupHintModeToggle();
+    setupAiNoticeAck();
     setupRecipeReload();
     setupTreeSearch();
 
