@@ -76,8 +76,8 @@
 
   .tabs {
     display: flex;
-    gap: 4px;
-    padding: 0 8px;
+    gap: 3px;
+    padding: 0 6px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -86,15 +86,15 @@
 
   .tab-button {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    letter-spacing: 0.04em;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     background: var(--panel);
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    padding: 10px 13px;
+    padding: 8px 10px;
     cursor: pointer;
     flex-shrink: 0;
     white-space: nowrap;
@@ -271,6 +271,27 @@
   }
 
   .sound-toggle.muted { color: var(--text-muted); opacity: 0.7; }
+
+  .volume-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .volume-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--gold);
+  }
+
+  #music-volume-label {
+    min-width: 36px;
+    text-align: right;
+    color: var(--gold);
+  }
 
   #result {
     font-family: 'IBM Plex Mono', monospace;
@@ -715,6 +736,11 @@
         <h2>Music</h2>
         <p>A quiet ambient loop plays in the background. It shares the same mute switch as sound effects — if those are off (from the Elements tab), music stays silent too, even with this toggled on.</p>
         <button id="music-toggle" class="sound-toggle" type="button">Music: On</button>
+        <div class="volume-row">
+          <label for="music-volume">Volume</label>
+          <input type="range" id="music-volume" min="0" max="100" step="5" value="100">
+          <span id="music-volume-label">100%</span>
+        </div>
       </div>
 
       <div class="about-block">
