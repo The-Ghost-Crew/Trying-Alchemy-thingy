@@ -249,11 +249,15 @@ function renderOrphanReport() {
 // Since case became meaningful, the same conceptual element spelled two
 // different ways (e.g. "corpse" in one recipe, "Corpse" in another) is no
 // longer silently unified — it becomes two genuinely separate elements.
-// That's invisible until a recipe quietly fails because the player's
-// discovered element doesn't match the exact capitalization a recipe
-// expects. This scans the whole universe for exactly that pattern, so it
-// can be caught in one pass instead of one broken recipe report at a time.
+// Flagging every same-case-different-spelling pair was the wrong bar,
+// though — "Earth" vs. "earth" both working perfectly as independent,
+// fully functional elements IS the disambiguation feature working
+// correctly, not a bug. The actual fingerprint of a typo is narrower: one
+// spelling can never be produced by anything while the other spelling
+// works fine. That asymmetry — not the mere existence of two spellings —
+// is what actually indicates an accidental mismatch.
 function computeCaseCollisions() {
+    const reachable = computeReachable();
     const groups = new Map(); // lowercase form -> Set of actual-case variants seen
 
     universe.forEach(el => {
@@ -264,8 +268,19 @@ function computeCaseCollisions() {
 
     const collisions = [];
     groups.forEach((variants, lower) => {
-        if (variants.size > 1) {
-            collisions.push({ lower, variants: [...variants].sort() });
+        if (variants.size <= 1) return;
+
+        const variantList = [...variants].sort();
+        const reachableVariants = variantList.filter(v => reachable.has(v));
+        const unreachableVariants = variantList.filter(v => !reachable.has(v));
+
+        // Only suspicious when there's a real split: at least one spelling
+        // demonstrably works and at least one demonstrably doesn't. If
+        // every variant is equally reachable (or equally unreachable),
+        // that's not evidence of a typo — the unreachable-only case is
+        // already covered by the orphan report anyway.
+        if (reachableVariants.length > 0 && unreachableVariants.length > 0) {
+            collisions.push({ lower, reachableVariants, unreachableVariants });
         }
     });
 
@@ -282,21 +297,21 @@ function renderCaseCollisionReport() {
     if (collisions.length === 0) {
         const p = document.createElement("p");
         p.className = "tree-hint";
-        p.textContent = "No capitalization conflicts — every element is spelled consistently.";
+        p.textContent = "No suspicious capitalization mismatches — case-based pairs that both work (like intentional disambiguation) aren't flagged.";
         container.appendChild(p);
         return;
     }
 
     const heading = document.createElement("p");
     heading.className = "tree-dead-note";
-    heading.textContent = `${collisions.length} element${collisions.length > 1 ? "s" : ""} spelled more than one way — if these are meant to be the same element, this is very likely why a recipe silently isn't working:`;
+    heading.textContent = `${collisions.length} likely capitalization typo${collisions.length > 1 ? "s" : ""} — one spelling below can never actually be produced, which usually means it's an accidental mismatch rather than an intentional distinction:`;
     container.appendChild(heading);
 
     const list = document.createElement("ul");
     list.className = "orphan-list";
     collisions.forEach(c => {
         const li = document.createElement("li");
-        li.textContent = c.variants.join("  vs.  ");
+        li.textContent = `${c.unreachableVariants.join(", ")} — unreachable; probably meant to match ${c.reachableVariants.join(" or ")}.`;
         list.appendChild(li);
     });
     container.appendChild(list);
