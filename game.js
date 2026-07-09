@@ -14,6 +14,44 @@ const STORAGE_KEY = "alchemy_discovered_elements";
 const ORDER_STORAGE_KEY = "alchemy_discovery_order";
 const TIMESTAMPS_KEY = "alchemy_discovery_timestamps";
 
+// ---------- Element icons ----------
+//
+// No manifest file, on purpose. A recipe needs a list because it encodes a
+// relationship that can't be inferred from anywhere else — an icon doesn't,
+// because the filename already IS the complete registration. Adding an
+// icon is exactly one step: drop element-icons/<name>.svg into the repo,
+// named like the element with spaces as hyphens. Nothing else to update,
+// nothing to forget to sync.
+const ELEMENT_ICON_DIR = "element-icons/";
+const missingIcons = new Set(); // elements confirmed to have no icon this session — avoids re-requesting the same 404 on every re-render
+
+function elementIconSlug(element) {
+    return element.toLowerCase().trim().replace(/\s+/g, "-");
+}
+
+function elementIconPath(element) {
+    return `${ELEMENT_ICON_DIR}${elementIconSlug(element)}.svg`;
+}
+
+// Returns an <img> if this element might have an icon, or null if it's
+// already confirmed not to. Failure (404) is handled gracefully — the
+// image just removes itself and the tile falls back to plain text, same
+// as it looks today for every element without custom art yet.
+function createElementIcon(element) {
+    if (missingIcons.has(element)) return null;
+
+    const img = document.createElement("img");
+    img.src = elementIconPath(element);
+    img.alt = "";
+    img.className = "element-icon";
+    img.loading = "lazy"; // only actually fetched once the tile scrolls into view — keeps a large discovered list from firing hundreds of requests at once on load
+    img.onerror = () => {
+        missingIcons.add(element);
+        img.remove();
+    };
+    return img;
+}
+
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
 const discovered = new Set(BASE_ELEMENTS);
@@ -1120,13 +1158,16 @@ function updateProgressDisplays() {
 
 function makeElementTile(element) {
     const button = document.createElement("button");
-    button.textContent = element;
     button.className = "element-tile";
     button.setAttribute("aria-pressed", element === first ? "true" : "false");
     if (element === first) button.classList.add("selected");
     if (isExhausted(element)) button.classList.add("dead-end");
     if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
     if (element === lastDiscovered) button.classList.add("just-found");
+
+    const icon = createElementIcon(element);
+    if (icon) button.appendChild(icon);
+    button.appendChild(document.createTextNode(element));
 
     button.onclick = () => {
         if (first === null) {
@@ -1327,7 +1368,9 @@ function buildDetailFragment(element, depths) {
     const frag = document.createDocumentFragment();
 
     const heading = document.createElement("h3");
-    heading.textContent = element;
+    const icon = createElementIcon(element);
+    if (icon) heading.appendChild(icon);
+    heading.appendChild(document.createTextNode(element));
     frag.appendChild(heading);
 
     const origin = recipeList.find(r => r.result === element);
