@@ -298,6 +298,15 @@ function isExhausted(el) {
     return relevant.every(r => discovered.has(r.result));
 }
 
+// Hint Mode: does this element have at least one combo you could make
+// RIGHT NOW — both the other ingredient already in hand, and the result
+// not yet found? By definition this can never be true for an exhausted
+// element (that's what exhausted means), so no special-casing is needed
+// to keep the two concepts from overlapping.
+function hasActionableCombo(el) {
+    return recipesInvolving(el).some(r => !discovered.has(r.result) && discovered.has(r.a) && discovered.has(r.b));
+}
+
 // ---------- Integrity / anti-cheat ----------
 //
 // Four independent checks, each calling recordStrike() when triggered.
@@ -955,15 +964,18 @@ function armFirstInteractionMusicStart() {
     document.addEventListener("touchstart", tryStart, { once: true });
 }
 
+function updateMusicToggleLabel() {
+    const btn = document.getElementById("music-toggle");
+    if (!btn) return;
+    btn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+    btn.classList.toggle("muted", !musicEnabled);
+}
+
 function setupMusicToggle() {
     const btn = document.getElementById("music-toggle");
     if (!btn) return;
 
-    const updateLabel = () => {
-        btn.textContent = musicEnabled ? "Music: On" : "Music: Off";
-        btn.classList.toggle("muted", !musicEnabled);
-    };
-    updateLabel();
+    updateMusicToggleLabel();
 
     btn.addEventListener("click", () => {
         musicEnabled = !musicEnabled;
@@ -972,7 +984,7 @@ function setupMusicToggle() {
         } catch (e) {
             console.warn("Could not save music preference:", e);
         }
-        updateLabel();
+        updateMusicToggleLabel();
         if (musicEnabled) startMusic();
         else stopMusic();
 
@@ -1045,7 +1057,26 @@ function setupSoundToggle() {
             console.warn("Could not save sound preference:", e);
         }
         updateLabel();
-        if (soundEnabled) playDiscoverySound(); // quick confirmation blip
+
+        if (soundEnabled) {
+            // Turning the master switch on is meant to be the one action
+            // that brings everything back, music included, rather than
+            // needing a second separate toggle for the common "just turn
+            // it all on" case.
+            if (!musicEnabled) {
+                musicEnabled = true;
+                try {
+                    localStorage.setItem(MUSIC_STORAGE_KEY, "true");
+                } catch (e) {
+                    console.warn("Could not save music preference:", e);
+                }
+                updateMusicToggleLabel();
+            }
+            startMusic();
+            playDiscoverySound(); // quick confirmation blip
+        } else {
+            stopMusic();
+        }
     });
 }
 
@@ -1094,6 +1125,7 @@ function makeElementTile(element) {
     button.setAttribute("aria-pressed", element === first ? "true" : "false");
     if (element === first) button.classList.add("selected");
     if (isExhausted(element)) button.classList.add("dead-end");
+    if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
     if (element === lastDiscovered) button.classList.add("just-found");
 
     button.onclick = () => {
@@ -1186,6 +1218,40 @@ function loadSortModePreference() {
     }
 }
 
+const HINT_MODE_KEY = "alchemy_hint_mode";
+let hintModeEnabled = false; // off by default — an opt-in assist, not a surprise for new players
+
+function loadHintModePreference() {
+    try {
+        const saved = localStorage.getItem(HINT_MODE_KEY);
+        if (saved !== null) hintModeEnabled = saved === "true";
+    } catch (e) {
+        console.warn("Could not load hint mode preference:", e);
+    }
+}
+
+function setupHintModeToggle() {
+    const btn = document.getElementById("hint-mode-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+        btn.classList.toggle("muted", !hintModeEnabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        hintModeEnabled = !hintModeEnabled;
+        try {
+            localStorage.setItem(HINT_MODE_KEY, String(hintModeEnabled));
+        } catch (e) {
+            console.warn("Could not save hint mode preference:", e);
+        }
+        updateLabel();
+        render(); // re-sort/re-style the Elements tab immediately
+    });
+}
+
 function setupSortToggle() {
     const buttons = document.querySelectorAll(".sort-toggle");
     buttons.forEach(btn => btn.classList.toggle("active", btn.dataset.sort === sortMode));
@@ -1235,8 +1301,19 @@ function render() {
         el.includes(query)
     );
 
-    const active = filtered.filter(el => !isExhausted(el));
+    let active = filtered.filter(el => !isExhausted(el));
     const dead = filtered.filter(el => isExhausted(el));
+
+    if (hintModeEnabled) {
+        // Hint Mode is a partition layered ON TOP of the existing sort
+        // mode, not a replacement for it — hintable elements keep their
+        // normal alpha/recent order among themselves at the top, and the
+        // rest keep theirs at the bottom, rather than flattening the list
+        // into one hint-only ordering.
+        const hintable = active.filter(hasActionableCombo);
+        const rest = active.filter(el => !hasActionableCombo(el));
+        active = [...hintable, ...rest];
+    }
 
     active.forEach(el => activeBox.appendChild(makeElementTile(el)));
     dead.forEach(el => deadBox.appendChild(makeElementTile(el)));
@@ -2030,6 +2107,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     // this check is still the very first thing it does.
     loadSoundPreference(); // must run before the penalty check below — showPenaltyLock plays a jingle and needs the player's actual saved preference, not the hardcoded default
     loadMusicPreference();
+    // If music was left off last time, start the whole page silent rather
+    // than SFX-on-but-no-music — the Sound toggle is now the single
+    // "everything on" switch (see setupSoundToggle), so this keeps its
+    // starting state consistent with what that toggle actually controls.
+    if (!musicEnabled) soundEnabled = false;
 
     const anticheatState = loadAnticheatState();
     if (anticheatState.penaltyUntil && Date.now() < anticheatState.penaltyUntil) {
@@ -2040,6 +2122,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     loadProgress();
     loadDeadEndCollapsePreference();
     loadSortModePreference();
+    loadHintModePreference();
     setupTabs();
     setupSearch();
     setupBackupControls();
@@ -2050,6 +2133,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     armFirstInteractionMusicStart();
     setupDeadEndToggle();
     setupSortToggle();
+    setupHintModeToggle();
     setupRecipeReload();
     setupTreeSearch();
 
