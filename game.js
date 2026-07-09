@@ -1305,6 +1305,7 @@ function setupHintModeToggle() {
 
 const AI_NOTICE_KEY = "alchemy_ai_notice_read";
 let aiNoticeRead = false;
+let aiBodyExpanded = true; // set correctly in setupAiNoticeAck() based on aiNoticeRead — separate from aiNoticeRead itself, so it can be reopened for rereading anytime, whether just acknowledged or read weeks ago
 
 function loadAiNoticePreference() {
     try {
@@ -1320,19 +1321,50 @@ function updateCreditsBadge() {
     if (badge) badge.hidden = aiNoticeRead;
 }
 
+// card thickness/prominence tracks whether it's EVER been read (aiNoticeRead);
+// body visibility tracks whether it's OPEN RIGHT NOW (aiBodyExpanded) — these
+// are independent so it can shrink down after being read, while still being
+// reopened to reread without regaining its original full-size treatment.
+function applyAiDisclosureState() {
+    const card = document.getElementById("ai-disclosure");
+    const body = document.getElementById("ai-disclosure-body");
+    const toggle = document.getElementById("ai-disclosure-toggle");
+    if (!card || !body || !toggle) return;
+
+    card.classList.toggle("collapsed", aiNoticeRead);
+    body.hidden = !aiBodyExpanded;
+    toggle.classList.toggle("collapsed", !aiBodyExpanded);
+}
+
+function moveAiDisclosureToBottom() {
+    const card = document.getElementById("ai-disclosure");
+    const panel = document.getElementById("tab-credits");
+    if (card && panel) panel.appendChild(card); // re-parenting to its own parent just moves it to the end
+}
+
 function setupAiNoticeAck() {
+    aiBodyExpanded = !aiNoticeRead; // starts open if never read; starts closed (but reopenable) if already acknowledged in a past session
+
+    if (aiNoticeRead) moveAiDisclosureToBottom();
+    applyAiDisclosureState();
     updateCreditsBadge();
 
-    const btn = document.getElementById("ai-notice-ack");
-    if (!btn) return;
+    const toggleBtn = document.getElementById("ai-disclosure-toggle");
+    toggleBtn?.addEventListener("click", () => {
+        aiBodyExpanded = !aiBodyExpanded;
+        applyAiDisclosureState();
+    });
 
-    const updateButton = () => {
-        btn.textContent = aiNoticeRead ? "Read" : "I've read this";
-        btn.classList.toggle("acknowledged", aiNoticeRead);
+    const ackBtn = document.getElementById("ai-notice-ack");
+    if (!ackBtn) return;
+
+    const updateAckButton = () => {
+        ackBtn.textContent = aiNoticeRead ? "Read" : "I've read this";
+        ackBtn.classList.toggle("acknowledged", aiNoticeRead);
     };
-    updateButton();
+    updateAckButton();
 
-    btn.addEventListener("click", () => {
+    ackBtn.addEventListener("click", () => {
         if (aiNoticeRead) return; // already acknowledged, nothing to toggle back
         aiNoticeRead = true;
         try {
@@ -1340,8 +1372,15 @@ function setupAiNoticeAck() {
         } catch (e) {
             console.warn("Could not save AI notice preference:", e);
         }
-        updateButton();
+        updateAckButton();
         updateCreditsBadge();
+
+        // Live transition on the exact click, not just next reload — moves
+        // to the bottom and collapses immediately, matching what a
+        // returning visitor would see.
+        aiBodyExpanded = false;
+        moveAiDisclosureToBottom();
+        applyAiDisclosureState();
     });
 }
 
