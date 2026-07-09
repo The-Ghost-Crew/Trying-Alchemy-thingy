@@ -296,6 +296,23 @@
     background: rgba(91, 143, 176, 0.12);
   }
 
+  /* Same green already used for "earth" elsewhere. Deliberately placed
+     after .hintable in source order — a green-paired element also
+     qualifies as generally hintable, so this needs to win visually over
+     the blue outline rather than the two competing unpredictably. */
+  .element-tile.hint-pair {
+    border-color: #5c8c5a;
+    color: #5c8c5a;
+    box-shadow: 0 0 0 1px rgba(92, 140, 90, 0.45);
+    background: rgba(92, 140, 90, 0.14);
+  }
+
+  .element-tile.hint-pair.selected {
+    border-color: #5c8c5a;
+    color: #5c8c5a;
+    background: rgba(92, 140, 90, 0.2);
+  }
+
   .sound-toggle {
     display: block;
     margin: 0 auto 12px;
