@@ -1249,6 +1249,7 @@ function makeElementTile(element) {
     if (element === first) button.classList.add("selected");
     if (isExhausted(element)) button.classList.add("dead-end");
     if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
+    if (greenHintPair && greenHintPair.includes(element)) button.classList.add("hint-pair");
     if (element === lastDiscovered) button.classList.add("just-found");
 
     const icon = createElementIcon(element);
@@ -1265,6 +1266,7 @@ function makeElementTile(element) {
         const chosenFirst = first;
         const result = combine(chosenFirst, element);
         recordComboTiming();
+        resetHintIdleTimer(); // "nothing has been combined" — this IS a combine attempt, whether it succeeds or not
 
         const resultEl = document.getElementById("result");
         resultEl.textContent = result
@@ -1376,7 +1378,63 @@ function setupHintModeToggle() {
         }
         updateLabel();
         render(); // re-sort/re-style the Elements tab immediately
+        if (hintModeEnabled) resetHintIdleTimer();
+        else stopHintIdleTimer();
     });
+}
+
+// ---------- Hint Mode: idle "what to make next" nudge ----------
+//
+// Blue (hintable) means "this element can combine with SOMETHING you
+// have." Green means something more specific: "these two exact elements
+// combine with each other" — a real answer, not just a general nudge.
+// Only surfaces after sustained idle time, so it doesn't undercut the
+// point of Hint Mode by handing out answers to someone still actively
+// working things out.
+const HINT_IDLE_DELAY_MS = 20000;
+let hintIdleTimer = null;
+let greenHintPair = null; // [elementA, elementB] currently suggested, or null
+
+function findRandomActionablePair() {
+    const candidates = recipeList.filter(
+        r => discovered.has(r.a) && discovered.has(r.b) && !discovered.has(r.result)
+    );
+    if (candidates.length === 0) return null;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    return [pick.a, pick.b];
+}
+
+function showGreenHint() {
+    if (!hintModeEnabled) return;
+    greenHintPair = findRandomActionablePair(); // re-picks fresh each time — if still idle after 20s more, the suggestion can rotate rather than staying static forever
+    render();
+}
+
+function clearGreenHint() {
+    if (greenHintPair !== null) {
+        greenHintPair = null;
+        render();
+    }
+}
+
+// Called on every combine ATTEMPT (not searching, not sorting, not tab
+// switching) — "nothing has been combined" means exactly that.
+function resetHintIdleTimer() {
+    if (hintIdleTimer) {
+        clearInterval(hintIdleTimer);
+        hintIdleTimer = null;
+    }
+    clearGreenHint();
+    if (!hintModeEnabled) return;
+    hintIdleTimer = setInterval(showGreenHint, HINT_IDLE_DELAY_MS);
+}
+
+function stopHintIdleTimer() {
+    if (hintIdleTimer) {
+        clearInterval(hintIdleTimer);
+        hintIdleTimer = null;
+    }
+    clearGreenHint();
 }
 
 const AI_NOTICE_KEY = "alchemy_ai_notice_read";
@@ -1518,14 +1576,16 @@ function render() {
     const dead = filtered.filter(el => isExhausted(el));
 
     if (hintModeEnabled) {
-        // Hint Mode is a partition layered ON TOP of the existing sort
-        // mode, not a replacement for it — hintable elements keep their
-        // normal alpha/recent order among themselves at the top, and the
-        // rest keep theirs at the bottom, rather than flattening the list
-        // into one hint-only ordering.
-        const hintable = active.filter(hasActionableCombo);
-        const rest = active.filter(el => !hasActionableCombo(el));
-        active = [...hintable, ...rest];
+        // Three tiers layered ON TOP of the existing sort mode, not a
+        // replacement for it — each group keeps normal alpha/recent order
+        // among itself. The green pair (if any) sits above the general
+        // blue-hintable group, since it's a more specific, more actionable
+        // suggestion than "this combines with something, unspecified."
+        const isGreenPair = el => greenHintPair && greenHintPair.includes(el);
+        const greenPair = active.filter(isGreenPair);
+        const hintable = active.filter(el => hasActionableCombo(el) && !isGreenPair(el));
+        const rest = active.filter(el => !hasActionableCombo(el) && !isGreenPair(el));
+        active = [...greenPair, ...hintable, ...rest];
     }
 
     active.forEach(el => activeBox.appendChild(makeElementTile(el)));
@@ -2414,6 +2474,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
     updateProgressDisplays();
     render();
+    if (hintModeEnabled) resetHintIdleTimer();
     // Tree is intentionally NOT built here — it's the hidden tab on load,
     // so building a 150+ node force graph before anyone's asked to see it
     // was pure wasted startup work. It builds lazily on first visit via
