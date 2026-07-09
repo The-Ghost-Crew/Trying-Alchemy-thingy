@@ -246,6 +246,62 @@ function renderOrphanReport() {
     container.appendChild(list);
 }
 
+// Since case became meaningful, the same conceptual element spelled two
+// different ways (e.g. "corpse" in one recipe, "Corpse" in another) is no
+// longer silently unified — it becomes two genuinely separate elements.
+// That's invisible until a recipe quietly fails because the player's
+// discovered element doesn't match the exact capitalization a recipe
+// expects. This scans the whole universe for exactly that pattern, so it
+// can be caught in one pass instead of one broken recipe report at a time.
+function computeCaseCollisions() {
+    const groups = new Map(); // lowercase form -> Set of actual-case variants seen
+
+    universe.forEach(el => {
+        const lower = el.toLowerCase();
+        if (!groups.has(lower)) groups.set(lower, new Set());
+        groups.get(lower).add(el);
+    });
+
+    const collisions = [];
+    groups.forEach((variants, lower) => {
+        if (variants.size > 1) {
+            collisions.push({ lower, variants: [...variants].sort() });
+        }
+    });
+
+    return collisions.sort((a, b) => a.lower.localeCompare(b.lower));
+}
+
+function renderCaseCollisionReport() {
+    const container = document.getElementById("case-collision-report");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const collisions = computeCaseCollisions();
+
+    if (collisions.length === 0) {
+        const p = document.createElement("p");
+        p.className = "tree-hint";
+        p.textContent = "No capitalization conflicts — every element is spelled consistently.";
+        container.appendChild(p);
+        return;
+    }
+
+    const heading = document.createElement("p");
+    heading.className = "tree-dead-note";
+    heading.textContent = `${collisions.length} element${collisions.length > 1 ? "s" : ""} spelled more than one way — if these are meant to be the same element, this is very likely why a recipe silently isn't working:`;
+    container.appendChild(heading);
+
+    const list = document.createElement("ul");
+    list.className = "orphan-list";
+    collisions.forEach(c => {
+        const li = document.createElement("li");
+        li.textContent = c.variants.join("  vs.  ");
+        list.appendChild(li);
+    });
+    container.appendChild(list);
+}
+
 function updateRecipesStatusDisplay() {
     const el = document.getElementById("recipes-status");
     if (!el || !recipesLoadStatus.time) return;
@@ -276,6 +332,11 @@ async function reloadRecipes() {
         // half-applied — the recipe count/status above has already updated
         // correctly by this point regardless of what happens next.
         console.error("Orphan report failed:", e);
+    }
+    try {
+        renderCaseCollisionReport();
+    } catch (e) {
+        console.error("Case collision report failed:", e);
     }
 }
 
@@ -2291,6 +2352,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         renderOrphanReport();
     } catch (e) {
         console.error("Orphan report failed:", e);
+    }
+    try {
+        renderCaseCollisionReport();
+    } catch (e) {
+        console.error("Case collision report failed:", e);
     }
     try {
         validateDiscoveryPlausibility();
