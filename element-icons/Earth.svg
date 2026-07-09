@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#3a6ea5" stroke-width="4"/>
+
+  <!-- sphere -->
+  <circle cx="50" cy="50" r="30" fill="#3a6ea5"/>
+
+  <!-- continents -->
+  <path d="M 32,38 Q 40,32 48,36 Q 46,44 38,46 Q 30,44 32,38 Z" fill="#5c8c5a"/>
+  <path d="M 55,30 Q 68,30 70,40 Q 64,46 56,42 Q 52,36 55,30 Z" fill="#5c8c5a"/>
+  <path d="M 42,58 Q 56,54 66,62 Q 62,72 48,72 Q 38,68 42,58 Z" fill="#5c8c5a"/>
+
+  <!-- thin atmosphere ring -->
+  <circle cx="50" cy="50" r="34" fill="none" stroke="#7fb0d8" stroke-width="1.5" opacity="0.5"/>
+</svg>
