@@ -2090,7 +2090,7 @@ recipe("gambling", "capital", "Las Vegas");
 recipe("general relativity", "scientist", "Einstein");
 recipe("geometry", "circle", "circle geometry");
 recipe("germany", "element", "germanium");
-recipe("Hatsune Miku", ""Brazil"", "Brazilian Miku");
+recipe("Hatsune Miku", "Brazil", "Brazilian Miku");
 recipe("hell", "stone", "brimstone");
 recipe("horizon", "table", "row");
 recipe("human", "Minecraft", "villager");
