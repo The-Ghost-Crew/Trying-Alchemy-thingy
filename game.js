@@ -26,7 +26,14 @@ const ELEMENT_ICON_DIR = "element-icons/";
 const missingIcons = new Set(); // elements confirmed to have no icon this session — avoids re-requesting the same 404 on every re-render
 
 function elementIconSlug(element) {
-    return element.toLowerCase().trim().replace(/\s+/g, "-");
+    // Case-preserving on purpose, as of the capitalization update: if
+    // "earth" and "Earth" are meant to be visually distinguishable, their
+    // icon files can't collide on the same lowercase name. A lowercase
+    // element's icon stays exactly as documented before (all lowercase);
+    // a NEW capitalized element needing its own art now needs a
+    // capitalized filename to match — e.g. "Earth" -> Earth.svg,
+    // deliberately separate from earth.svg.
+    return element.trim().replace(/\s+/g, "-");
 }
 
 function elementIconPath(element) {
@@ -283,34 +290,37 @@ function indexRecipe(el, entry) {
 }
 
 function recipe(a, b, result) {
-    const aLower = a.toLowerCase();
-    const bLower = b.toLowerCase();
-    const resultLower = result.toLowerCase();
+    const aTrimmed = a.trim();
+    const bTrimmed = b.trim();
+    const resultTrimmed = result.trim();
 
-    const key = [aLower, bLower].sort().join("|");
+    // Case is now part of an element's identity, not stripped at the door —
+    // "earth" and "Earth" are genuinely different elements, distinguished
+    // exactly as written here. Only whitespace gets normalized.
+    const key = [aTrimmed, bTrimmed].sort().join("|");
 
     if (recipes[key]) {
         // Previously this threw and killed every recipe() call after it in
         // the file — one duplicate during editing would silently truncate
         // the whole list. Now it just logs and skips that one line.
-        console.warn(`Skipped duplicate combo "${aLower} + ${bLower}" — already makes "${recipes[key]}".`);
+        console.warn(`Skipped duplicate combo "${aTrimmed} + ${bTrimmed}" — already makes "${recipes[key]}".`);
         return;
     }
 
-    recipes[key] = resultLower;
-    const entry = { a: aLower, b: bLower, result: resultLower };
+    recipes[key] = resultTrimmed;
+    const entry = { a: aTrimmed, b: bTrimmed, result: resultTrimmed };
     recipeList.push(entry);
 
-    indexRecipe(aLower, entry);
-    if (bLower !== aLower) indexRecipe(bLower, entry);
+    indexRecipe(aTrimmed, entry);
+    if (bTrimmed !== aTrimmed) indexRecipe(bTrimmed, entry);
 
-    universe.add(aLower);
-    universe.add(bLower);
-    universe.add(resultLower);
+    universe.add(aTrimmed);
+    universe.add(bTrimmed);
+    universe.add(resultTrimmed);
 }
 
 function combine(a, b) {
-    const key = [a, b].map(x => x.toLowerCase()).sort().join("|");
+    const key = [a, b].sort().join("|");
     return recipes[key] || null;
 }
 
@@ -654,7 +664,7 @@ function loadProgress() {
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) {
-                loadedElements = parsed.filter(el => typeof el === "string").map(el => el.toLowerCase());
+                loadedElements = parsed.filter(el => typeof el === "string");
             }
         }
     } catch (e) {
@@ -1321,10 +1331,14 @@ function sortElements(list) {
             const aRank = discoveryOrder.indexOf(a);
             const bRank = discoveryOrder.indexOf(b);
             if (aRank !== bRank) return bRank - aRank; // higher index = more recent = shown first
-            return a.localeCompare(b); // stable tiebreaker
+            return a.localeCompare(b, undefined, { sensitivity: "base" }); // stable tiebreaker, case-insensitive so "Earth" and "earth" don't split apart
         });
     }
-    return [...list].sort();
+    // Explicit case-insensitive comparator — a plain .sort() sorts by raw
+    // character code, which puts every capitalized element before every
+    // lowercase one as one big block, rather than mixing "Earth" in
+    // alphabetically next to "earth" the way a reader would expect.
+    return [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
 function render() {
@@ -1339,7 +1353,7 @@ function render() {
     const query = (document.getElementById("search")?.value || "").toLowerCase().trim();
 
     const filtered = sortElements([...discovered].filter(el => universe.has(el))).filter(el =>
-        el.includes(query)
+        el.toLowerCase().includes(query)
     );
 
     let active = filtered.filter(el => !isExhausted(el));
@@ -1469,7 +1483,9 @@ function renderTreeList() {
     const depths = computeDisplayDepths(new Set(allValid));
 
     const query = (document.getElementById("tree-search")?.value || "").toLowerCase().trim();
-    const visible = allValid.filter(el => el.includes(query)).sort();
+    const visible = allValid
+        .filter(el => el.toLowerCase().includes(query))
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
     const active = visible.filter(el => !isExhausted(el));
     const dead = visible.filter(el => isExhausted(el));
@@ -1810,12 +1826,12 @@ function applyGraphSearchHighlight(query) {
     const q = query.toLowerCase().trim();
 
     wrap.querySelectorAll("circle[data-el]").forEach(el => {
-        const match = !q || el.getAttribute("data-el").includes(q);
+        const match = !q || el.getAttribute("data-el").toLowerCase().includes(q);
         el.setAttribute("opacity", match ? "1" : "0.15");
     });
 
     wrap.querySelectorAll("text[data-el]").forEach(el => {
-        const id = el.getAttribute("data-el");
+        const id = el.getAttribute("data-el").toLowerCase();
         const important = el.getAttribute("data-important") === "true";
         if (!q) {
             el.setAttribute("opacity", important ? "1" : "0");
@@ -1869,16 +1885,15 @@ function decodeAndMerge(code) {
     let added = 0;
     const importTime = Date.now();
     parsed.forEach(el => {
-        if (typeof el === "string" && !discovered.has(el.toLowerCase())) {
-            const lower = el.toLowerCase();
-            discovered.add(lower);
+        if (typeof el === "string" && !discovered.has(el)) {
+            discovered.add(el);
             // A backup code has no timestamps, so true original discovery
             // order/time can't survive the trip — treated as "found right
             // now" on this device instead. Still a real timestamp, though,
             // so a legitimate import of a large set doesn't get mistaken
             // for the untimestamped-bulk pattern a fabricated save shows.
-            discoveryOrder.push(lower);
-            discoveryTimestamps[lower] = importTime;
+            discoveryOrder.push(el);
+            discoveryTimestamps[el] = importTime;
             added++;
         }
     });
