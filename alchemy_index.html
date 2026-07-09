@@ -98,7 +98,25 @@
     cursor: pointer;
     flex-shrink: 0;
     white-space: nowrap;
+    position: relative;
     transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  .tab-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #f2c94c;
+    color: #14151f;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--ink-bg);
   }
 
   .tab-button:hover { color: var(--text); }
@@ -615,6 +633,54 @@
   }
 
   #reset-btn:hover { border-color: var(--red); }
+
+  .ai-disclosure {
+    border: 2px solid var(--red);
+    border-radius: 8px;
+    padding: 18px;
+    background: rgba(181, 69, 63, 0.06);
+  }
+
+  .ai-disclosure h2 {
+    color: #e0a8a4;
+    font-size: 1.4rem;
+  }
+
+  .ai-disclosure p {
+    color: var(--text);
+  }
+
+  .ai-disclosure blockquote {
+    margin: 12px 0;
+    padding: 4px 16px;
+    border-left: 3px solid var(--red-soft);
+    font-style: italic;
+  }
+
+  .ai-disclosure blockquote p {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    margin: 0 0 8px;
+  }
+
+  .ai-disclosure blockquote p:last-child { margin-bottom: 0; }
+
+  #ai-notice-ack {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--red);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 18px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  #ai-notice-ack:hover { background: #c85850; }
+  #ai-notice-ack.acknowledged { background: var(--panel); color: var(--text-muted); cursor: default; }
 </style>
 </head>
 <body>
@@ -665,7 +731,7 @@
     <button class="tab-button active" data-tab="lab">Elements</button>
     <button class="tab-button" data-tab="tree">Family Tree</button>
     <button class="tab-button" data-tab="sets">Sets</button>
-    <button class="tab-button" data-tab="credits">Credits</button>
+    <button class="tab-button" data-tab="credits">Credits<span id="credits-badge" class="tab-badge">!</span></button>
     <button class="tab-button" data-tab="about">About</button>
   </div>
 
@@ -738,6 +804,38 @@
     </section>
 
     <section id="tab-credits" class="tab-panel">
+      <div class="about-block ai-disclosure" id="ai-disclosure">
+        <h2>A Note on AI</h2>
+        <p>I dislike AI usage in creative and coding projects. I want to say that plainly before anything else. But I did use AI to help build this website, and I'd rather tell you directly than have you find out and feel misled. If you don't want to play something built with AI involved, I understand completely — you're free to close this tab. There are no ads here and I make no money from this project. This is honesty, not a pitch.</p>
+
+        <p>The way I used it isn't what you might assume. I didn't sit down and tell an AI "build me an alchemy game, add this feature, add that feature" and let it invent the thing. That's not what happened here.</p>
+
+        <p>For context: I also run another project, Super-Shiritori, which I built entirely by hand with no AI involvement at all — and that lack of structure eventually caused real disorganization that made updates harder than they needed to be. I put this to a poll in that project's own server, asking permission to start using AI there too, under a specific, narrow set of rules. Here's exactly what I told them:</p>
+
+        <blockquote>
+          <p>There is a ton of stuff about Claude and Codex being top AI code sources.</p>
+          <p>Now I mentioned before my dislikement of using AI for coding, and Shiritori is one hell of a spaghetti mess because it's just me coding.</p>
+          <p>But I have considered asking if I should start using AI to aid in the development of Super-Shiritori.</p>
+          <p><strong>NOW RELAX.</strong> I'm not going to use AI to start making new features for me or make new gamemodes.</p>
+          <p>The development process will still be the same, where you guys have the highest influence on what will be changed and added or removed, and I will code that.</p>
+          <p>Me using AI will only be used for it to read all my code and figure out how to optimize it. I have over 14k lines in one area alone — it is so many minigames like Wordle and Anagram and Wordbomb, we have all of Vexillopedia.</p>
+          <p>I will use AI to only aid me in making what I have currently in a clean, organized way — for efficiency, where I can have Vexillopedia its own bot and all of the server-exclusive features here, like a dedicated channel, and Vexillopedia.</p>
+          <p>At the end of this it should make Super-Shiritori more reliable and less likely to crash or lag behind.</p>
+          <p><strong>NOW</strong> I will follow suit if you agree to allow me to use AI in this manner, and ONLY this manner.</p>
+          <p>If majority votes against this, I'll continue to do this manually without AI, as I always have been.</p>
+          <p>But if you agree and are willingly able to accept the use of AI in this form, I will do so.</p>
+          <p>I can assure that you can trust me to not use AI in a way that isn't what I describe, given I hate AI as much as the next guy.</p>
+        </blockquote>
+
+        <p>That's the same principle I've carried into this project. Every element, every recipe, every gameplay decision here was designed by me, not generated by AI. AI's role was to help me understand and implement what I'd already decided, to make writing and organizing this codebase more efficient, and — yes — to help clean up my own writing, including this exact explanation. I wrote this myself; I only asked for help with punctuation. If you're wondering about the em dashes, those are mine too.</p>
+
+        <p>I've used AI, and will keep using it, as a tool — not as a shortcut to produce slop, and not to vibecode or flowcode my way through a project I didn't actually design. I dislike that stereotype as much as anyone.</p>
+
+        <p>Thank you for reading this far. If you're still here — welcome. Every element in this game is human-made, and I hope you enjoy it. If this changes how you feel about playing, that's completely fine too. Close the tab, go play Little Alchemy instead, no hard feelings. Though if you dislike AI but you're playing Infinite Craft — that's a little bit of an interesting contradiction, isn't it?</p>
+
+        <button id="ai-notice-ack" type="button">I've read this</button>
+      </div>
+
       <div class="about-block">
         <h2>Creator</h2>
         <p><strong>Ghost :/</strong> — Discord: <code>no_where.ghost_002</code></p>
@@ -756,6 +854,7 @@
       <div class="about-block">
         <h2>Community</h2>
         <p>Have an idea for a new element? <a href="https://discord.gg/PZ66BSfDS8" target="_blank" rel="noopener noreferrer">Ghost's Alchemy</a> is a Discord server for suggesting elements, run by <strong>chessguyyy</strong>.</p>
+        <p>Ghost also runs <a href="https://discord.gg/WahVXSkA7H" target="_blank" rel="noopener noreferrer">Super-Shiritori</a>, a separate word-game project referenced in the AI note above.</p>
       </div>
     </section>
 
