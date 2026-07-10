@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#6b9c5f" stroke-width="4"/>
+
+  <!-- rounded hill mound -->
+  <path d="M 14,74 Q 14,34 50,34 Q 86,34 86,74 Z" fill="#6b9c5f"/>
+</svg>
