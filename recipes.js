@@ -2246,7 +2246,7 @@ recipe("perpendicular", "vertical", "horizontal");
 recipe("chicken", "furnace", "roasted chicken");
 recipe("chicken", "fire", "roasted chicken");
 recipe("sex", "group", "orgy");
-recipe("bread", "dough", "bread");
+recipe("furnace", "dough", "bread");
 recipe("water", "paint", "watercolor");
 recipe("water", "art", "acrylic");
 recipe("machine", "writing", "printing press");
