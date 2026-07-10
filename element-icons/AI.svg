@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="aiChipGrad" x1="20" y1="20" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d8b0f0"/>
+      <stop offset="100%" stop-color="#8a4fc9"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#b06fd4" stroke-width="4"/>
+
+  <!-- circuit traces -->
+  <g stroke="url(#aiChipGrad)" stroke-width="3" stroke-linecap="round">
+    <line x1="50" y1="34" x2="50" y2="20"/>
+    <line x1="50" y1="66" x2="50" y2="80"/>
+    <line x1="66" y1="50" x2="80" y2="50"/>
+    <line x1="34" y1="50" x2="20" y2="50"/>
+    <line x1="66" y1="34" x2="76" y2="24"/>
+    <line x1="34" y1="34" x2="24" y2="24"/>
+    <line x1="66" y1="66" x2="76" y2="76"/>
+    <line x1="34" y1="66" x2="24" y2="76"/>
+  </g>
+
+  <!-- terminal nodes -->
+  <g fill="url(#aiChipGrad)">
+    <circle cx="50" cy="17" r="3.2"/>
+    <circle cx="50" cy="83" r="3.2"/>
+    <circle cx="83" cy="50" r="3.2"/>
+    <circle cx="17" cy="50" r="3.2"/>
+    <circle cx="79" cy="21" r="3.2"/>
+    <circle cx="21" cy="21" r="3.2"/>
+    <circle cx="79" cy="79" r="3.2"/>
+    <circle cx="21" cy="79" r="3.2"/>
+  </g>
+
+  <!-- chip body -->
+  <rect x="34" y="34" width="32" height="32" rx="7" fill="url(#aiChipGrad)"/>
+
+  <!-- AI label, cut through to background -->
+  <text x="50" y="61" font-family="Arial, sans-serif" font-size="17" font-weight="bold"
+        fill="#14151f" text-anchor="middle">AI</text>
+</svg>
