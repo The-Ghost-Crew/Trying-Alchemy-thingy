@@ -2326,7 +2326,7 @@ recipe("book", "paper", "page");
 recipe("page", "WikiWikiWeb", "wiki");
 recipe("WikiWikiWeb", "idea", "wiki");
 recipe("wiki", "encyclopedia", "Wikipedia");
-recipe("wiki", "dictionary", "Wikipedia");
+recipe("wiki", "dictionary", "Wikitionary");
 recipe("wiki", "city", "Wikicities");
 recipe("Wikicities", "time", "Wikia");
 recipe("Wikia", "time", "Fandom");
