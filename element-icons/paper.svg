@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#d8d2c0" stroke-width="4"/>
+
+  <!-- sheet with folded corner -->
+  <path d="M 30,24 L 62,24 L 74,36 L 74,78 L 30,78 Z" fill="#d8d2c0"/>
+  <path d="M 62,24 L 62,36 L 74,36 Z" fill="#b8b2a0"/>
+
+  <!-- text lines -->
+  <g stroke="#a8a290" stroke-width="2.5" stroke-linecap="round">
+    <line x1="38" y1="46" x2="66" y2="46"/>
+    <line x1="38" y1="54" x2="66" y2="54"/>
+    <line x1="38" y1="62" x2="66" y2="62"/>
+    <line x1="38" y1="70" x2="58" y2="70"/>
+  </g>
+</svg>

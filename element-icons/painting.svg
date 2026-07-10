@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#b8935f" stroke-width="4"/>
+
+  <!-- ornate frame -->
+  <rect x="25" y="25" width="50" height="50" rx="2" fill="none" stroke="#b8935f" stroke-width="5"/>
+
+  <!-- mountains -->
+  <path d="M 29,64 L 42,46 L 51,58 L 60,44 L 71,64 Z" fill="#b8935f"/>
+
+  <!-- sun -->
+  <circle cx="38" cy="38" r="6" fill="#b8935f"/>
+
+  <!-- smiley face -->
+  <circle cx="36" cy="37" r="1" fill="#14151f"/>
+  <circle cx="40" cy="37" r="1" fill="#14151f"/>
+  <path d="M 35,40 Q 38,42.5 41,40" fill="none" stroke="#14151f" stroke-width="1" stroke-linecap="round"/>
+</svg>
