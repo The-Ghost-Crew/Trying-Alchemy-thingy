@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#c17a2e" stroke-width="4"/>
+
+  <!-- cap -->
+  <rect x="39" y="8" width="22" height="9" rx="2" fill="#3a3226"/>
+
+  <!-- neck -->
+  <rect x="41" y="17" width="18" height="15" fill="#c17a2e"/>
+
+  <!-- shoulder -->
+  <path d="M 32,46 L 32,38 Q 32,32 40,32 L 60,32 Q 68,32 68,38 L 68,46 Z" fill="#c17a2e"/>
+
+  <!-- body, sharp top corners flush with shoulder, rounded base -->
+  <path d="M 32,46 L 68,46 L 68,80 Q 68,86 62,86 L 38,86 Q 32,86 32,80 Z" fill="#c17a2e"/>
+
+  <!-- blank label -->
+  <rect x="36" y="56" width="28" height="22" rx="2" fill="#e8e2d0"/>
+</svg>
