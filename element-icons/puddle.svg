@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#79b3d1" stroke-width="4"/>
+
+  <!-- irregular puddle blob, viewed top-down -->
+  <path d="M 20,58 C 22,46 34,40 48,42 C 62,38 78,46 78,58 C 80,68 66,74 50,72 C 34,76 18,70 20,58 Z"
+        fill="#79b3d1"/>
+
+  <!-- ripples -->
+  <ellipse cx="50" cy="56" rx="18" ry="9" fill="none" stroke="#e8f2fa" stroke-width="1.5" opacity="0.45"/>
+  <ellipse cx="50" cy="56" rx="10" ry="5" fill="none" stroke="#e8f2fa" stroke-width="1.2" opacity="0.4"/>
+
+  <!-- specular highlight -->
+  <ellipse cx="39" cy="49" rx="6" ry="2.3" fill="#e8f2fa" opacity="0.35" transform="rotate(-15 39 49)"/>
+</svg>
