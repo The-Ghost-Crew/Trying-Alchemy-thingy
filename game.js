@@ -1484,6 +1484,23 @@ function moveAiDisclosureToBottom() {
     if (card && panel) panel.appendChild(card); // re-parenting to its own parent just moves it to the end
 }
 
+// Generic collapsible pattern: any button with class "simple-toggle" shows
+// or hides its next sibling element. No persisted state (resets collapsed
+// on reload, which is fine for a credits list) and no per-entry JS needed —
+// adding artist #3, #10, #30 later is just adding another button+div pair
+// in the HTML, not new code here.
+function setupSimpleToggles() {
+    document.querySelectorAll(".simple-toggle").forEach(btn => {
+        const target = btn.nextElementSibling;
+        if (!target) return;
+        btn.classList.toggle("collapsed", target.hidden);
+        btn.addEventListener("click", () => {
+            target.hidden = !target.hidden;
+            btn.classList.toggle("collapsed", target.hidden);
+        });
+    });
+}
+
 function setupAiNoticeAck() {
     aiBodyExpanded = !aiNoticeRead; // starts open if never read; starts closed (but reopenable) if already acknowledged in a past session
 
@@ -2420,6 +2437,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupSortToggle();
     setupHintModeToggle();
     setupAiNoticeAck();
+    setupSimpleToggles();
     setupRecipeReload();
     setupTreeSearch();
 
