@@ -391,6 +391,42 @@
     transition: transform 0.15s ease;
   }
 
+  .artist-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    background: none;
+    border: none;
+    border-top: 1px solid var(--border);
+    color: var(--parchment);
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    text-align: left;
+    padding: 10px 0;
+    cursor: pointer;
+  }
+
+  .artist-toggle .chevron {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+  }
+
+  .artist-toggle.collapsed .chevron { transform: rotate(-90deg); }
+
+  .artist-credit-body { padding: 0 0 6px 22px; }
+  .artist-credit-body p { margin: 0; }
+
+  .ai-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: #e0a8a4;
+    font-style: italic;
+  }
+
   .section-toggle.collapsed .chevron { transform: rotate(-90deg); }
 
   #tree-header {
@@ -886,7 +922,21 @@
 
       <div class="about-block">
         <h2>Element art &amp; icons</h2>
-        <p class="tree-pending">No credits yet.</p>
+        <p>Every element with an icon that isn't credited below was created or commissioned by Ghost :/.</p>
+
+        <button class="artist-toggle simple-toggle" type="button">
+          <span class="chevron">▾</span> @chessguyyy (Discord)
+        </button>
+        <div class="artist-credit-body" hidden>
+          <p>All 118 Periodic Table elements, plus one extra: <strong>Veritasium</strong>.</p>
+        </div>
+
+        <button class="artist-toggle simple-toggle" type="button">
+          <span class="chevron">▾</span> Claude (LLM, or whatever this counts as)
+        </button>
+        <div class="artist-credit-body" hidden>
+          <p><strong>AI</strong> <span class="ai-tag">(AI-Generated)</span></p>
+        </div>
       </div>
 
       <div class="about-block">
