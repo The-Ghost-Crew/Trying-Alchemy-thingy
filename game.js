@@ -37,7 +37,15 @@ function elementIconSlug(element) {
 }
 
 function elementIconPath(element) {
-    return `${ELEMENT_ICON_DIR}${elementIconSlug(element)}.svg`;
+    // encodeURIComponent, not just the raw slug — "#" specifically is a
+    // URL fragment delimiter, so element-icons/C#.svg would make the
+    // browser request "element-icons/C" and treat ".svg" as a page
+    // anchor, never actually asking the server for the real file at all.
+    // This isn't specific to "#" either: "+", "(", ")", "%", "&", "/" all
+    // have their own special meaning in a URL. encodeURIComponent handles
+    // every one of them at once — the file on disk keeps its natural
+    // name exactly matching the element; only the request URL changes.
+    return `${ELEMENT_ICON_DIR}${encodeURIComponent(elementIconSlug(element))}.svg`;
 }
 
 // Returns an <img> if this element might have an icon, or null if it's
