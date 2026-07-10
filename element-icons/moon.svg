@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <clipPath id="moonClip">
+      <circle cx="50" cy="50" r="28"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#d4d0c8" stroke-width="4"/>
+
+  <!-- pale grey sphere -->
+  <circle cx="50" cy="50" r="28" fill="#d4d0c8"/>
+
+  <g clip-path="url(#moonClip)">
+    <!-- maria (dark plains) -->
+    <ellipse cx="40" cy="44" rx="8" ry="6" fill="#9c968c" opacity="0.8"/>
+    <ellipse cx="58" cy="40" rx="6" ry="5" fill="#9c968c" opacity="0.7"/>
+    <ellipse cx="46" cy="60" rx="7" ry="5" fill="#9c968c" opacity="0.75"/>
+
+    <!-- craters -->
+    <circle cx="36" cy="58" r="2.5" fill="#8a8680"/>
+    <circle cx="62" cy="56" r="2" fill="#8a8680"/>
+    <circle cx="52" cy="34" r="1.8" fill="#8a8680"/>
+  </g>
+</svg>
