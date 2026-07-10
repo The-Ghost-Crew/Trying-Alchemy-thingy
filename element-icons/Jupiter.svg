@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <clipPath id="jupiterClip">
+      <circle cx="50" cy="50" r="30"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#d9b88a" stroke-width="4"/>
+
+  <!-- base sphere -->
+  <circle cx="50" cy="50" r="30" fill="#d9b88a"/>
+
+  <g clip-path="url(#jupiterClip)">
+    <!-- bands -->
+    <rect x="10" y="24" width="80" height="5" fill="#b8875a"/>
+    <rect x="10" y="31" width="80" height="4" fill="#c9a06a" opacity="0.8"/>
+    <rect x="10" y="37" width="80" height="7" fill="#a8754a"/>
+    <rect x="10" y="53" width="80" height="6" fill="#b8875a"/>
+    <rect x="10" y="61" width="80" height="4" fill="#c9a06a" opacity="0.8"/>
+    <rect x="10" y="67" width="80" height="5" fill="#a8754a"/>
+
+    <!-- great red spot -->
+    <ellipse cx="62" cy="48" rx="7" ry="4.5" fill="#c1440e"/>
+  </g>
+</svg>
