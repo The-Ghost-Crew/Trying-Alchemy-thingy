@@ -2310,3 +2310,6 @@ recipe("Light Yagami", "mother", "Sachiko Yagami");
 recipe("Light Yagami", "sister", "Sayu Yagami");
 recipe("calendar", "day", "date of death");
 recipe("story", "philosophy", "fiction");
+recipe("child", "child", "sibling");
+recipe("sibling", "male", "brother");
+recipe("sibling", "female", "sister");
