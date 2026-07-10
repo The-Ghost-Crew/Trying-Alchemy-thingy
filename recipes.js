@@ -104,7 +104,7 @@ recipe("trash can", "plastic", "trash");
 recipe("trash", "land", "landfill");
 recipe("trash", "green", "recycle");
 recipe("oil", "gas", "plastic");
-recipe("Mercury", "star", "sum");
+recipe("Mercury", "star", "sun");
 recipe("Venus", "star", "sun");
 recipe("Mars", "star", "sun");
 recipe("Jupiter", "star", "sun");
