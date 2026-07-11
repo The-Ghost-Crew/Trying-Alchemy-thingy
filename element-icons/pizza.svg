@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <clipPath id="pizzaSliceClip">
+      <path d="M 30,37 Q 50,28 70,37 L 50,78 Z"/>
+    </clipPath>
+  </defs>
+
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#e8b93f" stroke-width="4"/>
+
+  <!-- crust (full wedge, darker) -->
+  <path d="M 26,32 Q 50,20 74,32 L 50,80 Z" fill="#b8822a"/>
+
+  <!-- cheese/topping area, inset from the crust edge -->
+  <path d="M 30,37 Q 50,28 70,37 L 50,78 Z" fill="#e8b93f"/>
+
+  <!-- pepperoni, clipped so they can never cross the slice edge -->
+  <g clip-path="url(#pizzaSliceClip)">
+    <circle cx="42" cy="45" r="5" fill="#c0392b"/>
+    <circle cx="58" cy="50" r="4" fill="#c0392b"/>
+    <circle cx="46" cy="61" r="3.5" fill="#c0392b"/>
+    <circle cx="40" cy="54" r="3" fill="#c0392b"/>
+  </g>
+</svg>
