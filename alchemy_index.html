@@ -214,6 +214,8 @@
     margin: -4px 0 20px;
   }
 
+  #complete-banner a { color: var(--gold); text-decoration: underline; }
+
   #search, #tree-search {
     width: 100%;
     background: var(--panel);
@@ -872,7 +874,7 @@
       </div>
       <button id="sound-toggle" class="sound-toggle" type="button">Sound</button>
       <span class="dead-end-count">0 dead ends found</span>
-      <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements.</p>
+      <p id="complete-banner" hidden>All known elements discovered. Wait for a new update with more elements. <a href="suggest_elements.html" target="_blank" rel="noopener noreferrer">Suggest what should come next</a>.</p>
       <p id="result" aria-live="polite"></p>
 
       <div class="sort-controls">
@@ -1000,6 +1002,7 @@
       <div class="about-block">
         <h2>Community</h2>
         <p>Have an idea for a new element? <a href="https://discord.gg/PZ66BSfDS8" target="_blank" rel="noopener noreferrer">Ghost's Alchemy</a> is a Discord server for suggesting elements, run by <strong>chessguyyy</strong>.</p>
+        <p>Don't want to join Discord? You can <a href="suggest_elements.html" target="_blank" rel="noopener noreferrer">suggest an element directly</a> instead — no account needed.</p>
         <p>Ghost also runs <a href="https://discord.gg/WahVXSkA7H" target="_blank" rel="noopener noreferrer">Super-Shiritori</a>, a separate word-game project referenced in the AI note above.</p>
       </div>
     </section>
