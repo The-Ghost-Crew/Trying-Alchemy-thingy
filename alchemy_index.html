@@ -239,6 +239,19 @@
     margin: 0 0 10px;
   }
 
+  .about-group-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    border-bottom: 1px solid var(--gold-soft);
+    padding-bottom: 8px;
+    margin: 0 0 16px;
+  }
+
+  .about-group-label:not(:first-child) { margin-top: 32px; }
+
   #dead-end-section {
     border-top: 1px dashed var(--border);
     padding-top: 16px;
@@ -523,6 +536,44 @@
     cursor: pointer;
   }
 
+  #page-loader-skip-confirm {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-width: 320px;
+  }
+
+  #page-loader-skip-warning {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  #page-loader-skip-confirm-btn,
+  #page-loader-skip-cancel-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    border-radius: 20px;
+    padding: 6px 16px;
+    cursor: pointer;
+  }
+
+  #page-loader-skip-confirm-btn {
+    background: none;
+    border: 1px solid var(--red-soft);
+    color: #e0a8a4;
+  }
+
+  #page-loader-skip-cancel-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
   #penalty-detail {
     font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
@@ -788,6 +839,13 @@
   </svg>
   <p id="page-loader-text">Loading elements…</p>
   <button id="page-loader-skip" type="button" hidden>Skip loading</button>
+  <div id="page-loader-skip-confirm" hidden>
+    <p id="page-loader-skip-warning">This is taking longer than usual. Skipping now won't lose any saved progress, but nothing new will craft successfully until loading actually finishes in the background — it'll keep trying either way.</p>
+    <div class="backup-actions">
+      <button id="page-loader-skip-confirm-btn">Skip anyway</button>
+      <button id="page-loader-skip-cancel-btn">Keep waiting</button>
+    </div>
+  </div>
 </div>
 
 <header>
@@ -947,6 +1005,8 @@
     </section>
 
     <section id="tab-about" class="tab-panel">
+      <div class="about-group-label">Settings</div>
+
       <div class="about-block">
         <h2>Music</h2>
         <p>A quiet ambient loop plays in the background. It shares the same mute switch as sound effects — if those are off (from the Elements tab), music stays silent too, even with this toggled on.</p>
@@ -965,13 +1025,14 @@
       </div>
 
       <div class="about-block">
-        <h2>How progress is saved</h2>
-        <p>Your discovered elements are saved in this browser using <code>localStorage</code>, a small storage space each website gets in your browser. There's no account and no server; the data lives only on this device, in this browser.</p>
-      </div>
-
-      <div class="about-block">
-        <h2>What that means in practice</h2>
-        <p>Progress won't follow you to a different browser or device — Chrome on your laptop and Safari on your phone each keep their own separate save. Clearing your browser's site data or cache will erase it. Private/incognito windows usually don't save it at all.</p>
+        <h2>Recipe data</h2>
+        <p>Every page load fetches <code>recipes.js</code> fresh, bypassing the browser cache entirely. If you just updated it and don't see new elements, use this instead of guessing whether it's stale or genuinely stuck — it tells you which.</p>
+        <div class="backup-actions">
+          <button id="reload-recipes-btn">Reload recipes now</button>
+        </div>
+        <p id="recipes-status" class="tree-pending">Not loaded yet.</p>
+        <div id="orphan-report"></div>
+        <div id="case-collision-report"></div>
       </div>
 
       <div class="about-block">
@@ -991,6 +1052,31 @@
         <p id="backup-status" hidden></p>
       </div>
 
+      <div class="about-block danger-zone">
+        <h2>Danger zone</h2>
+        <p>This clears every element you've discovered and starts you back at air, water, earth, and fire. It can't be undone unless you've saved a backup code above.</p>
+        <button id="reset-btn">Delete all progress</button>
+        <div id="reset-confirm" hidden>
+          <p class="tree-dead-note">Are you sure? This clears everything and can't be undone unless you've saved a backup code.</p>
+          <div class="backup-actions">
+            <button id="reset-confirm-btn">Yes, delete everything</button>
+            <button id="reset-cancel-btn">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-group-label">Information</div>
+
+      <div class="about-block">
+        <h2>How progress is saved</h2>
+        <p>Your discovered elements are saved in this browser using <code>localStorage</code>, a small storage space each website gets in your browser. There's no account and no server; the data lives only on this device, in this browser.</p>
+      </div>
+
+      <div class="about-block">
+        <h2>What that means in practice</h2>
+        <p>Progress won't follow you to a different browser or device — Chrome on your laptop and Safari on your phone each keep their own separate save. Clearing your browser's site data or cache will erase it. Private/incognito windows usually don't save it at all.</p>
+      </div>
+
       <div class="about-block">
         <h2>Why it's built this way</h2>
         <p>A shared save file that "only the computer can read" isn't actually possible — any code that runs in your browser can be read by anyone using developer tools, so it wouldn't add real protection. Real accounts would need a server and password hashing, which is a bigger project than this prototype currently needs.</p>
@@ -1007,27 +1093,8 @@
       </div>
 
       <div class="about-block">
-        <h2>Recipe data</h2>
-        <p>Every page load fetches <code>recipes.js</code> fresh, bypassing the browser cache entirely. If you just updated it and don't see new elements, use this instead of guessing whether it's stale or genuinely stuck — it tells you which.</p>
-        <div class="backup-actions">
-          <button id="reload-recipes-btn">Reload recipes now</button>
-        </div>
-        <p id="recipes-status" class="tree-pending">Not loaded yet.</p>
-        <div id="orphan-report"></div>
-        <div id="case-collision-report"></div>
-      </div>
-
-      <div class="about-block danger-zone">
-        <h2>Danger zone</h2>
-        <p>This clears every element you've discovered and starts you back at air, water, earth, and fire. It can't be undone unless you've saved a backup code above.</p>
-        <button id="reset-btn">Delete all progress</button>
-        <div id="reset-confirm" hidden>
-          <p class="tree-dead-note">Are you sure? This clears everything and can't be undone unless you've saved a backup code.</p>
-          <div class="backup-actions">
-            <button id="reset-confirm-btn">Yes, delete everything</button>
-            <button id="reset-cancel-btn">Cancel</button>
-          </div>
-        </div>
+        <h2>Why SVG icons, not PNG</h2>
+        <p>Element icons are vector files (SVG), not pixel images. A vector shape is just math describing lines and curves, so it renders identically sharp whether it's shown at 18px or 1800px — there's no "blurry when scaled up" problem the way there is with PNGs, and no need to export separate sizes for different screens. SVGs are also tiny (usually under a kilobyte each for icons this simple), which adds up across a large discovered list. The tradeoff: SVG is a poor fit for photographic detail or gradients — it's built for clean shapes, which happens to be exactly this game's icon style already.</p>
       </div>
     </section>
 
