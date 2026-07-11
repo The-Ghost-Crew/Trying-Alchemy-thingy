@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#2d4a35" stroke-width="4"/>
+
+  <!-- cork/foil -->
+  <rect x="45" y="8" width="10" height="10" rx="2" fill="#c9a876"/>
+
+  <!-- long elegant neck -->
+  <rect x="44" y="16" width="12" height="22" fill="#2d4a35"/>
+
+  <!-- gradual curved shoulder, corners at x=36 and x=64 -->
+  <path d="M 36,50 Q 36,38 44,38 L 56,38 Q 64,38 64,50 Z" fill="#2d4a35"/>
+
+  <!-- body, sharp top corners flush with shoulder, rounded base only -->
+  <path d="M 36,50 L 64,50 L 64,78 Q 64,82 60,82 L 40,82 Q 36,82 36,78 Z" fill="#2d4a35"/>
+</svg>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#c9863f" stroke-width="4"/>
+
+  <!-- handle -->
+  <path d="M 64,46 Q 78,46 78,58 Q 78,70 64,70" fill="none" stroke="#c9863f" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- mug body -->
+  <rect x="32" y="38" width="32" height="42" rx="3" fill="#c9863f"/>
+
+  <!-- foam -->
+  <path d="M 32,38 Q 32,28 40,28 Q 44,24 48,28 Q 52,24 56,28 Q 60,28 64,38 Z" fill="#f0ece0"/>
+</svg>
