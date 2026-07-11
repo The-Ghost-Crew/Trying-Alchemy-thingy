@@ -2517,10 +2517,30 @@ setTimeout(() => {
     if (isPenaltyLocked) return;
     const skipBtn = document.getElementById("page-loader-skip");
     if (skipBtn) skipBtn.hidden = false;
-}, 5000);
+}, 15000);
 
 document.getElementById("page-loader-skip")?.addEventListener("click", () => {
     if (isPenaltyLocked) return;
+    document.getElementById("page-loader-skip").hidden = true;
+    const confirmBox = document.getElementById("page-loader-skip-confirm");
+    if (confirmBox) confirmBox.hidden = false;
+});
+
+document.getElementById("page-loader-skip-cancel-btn")?.addEventListener("click", () => {
+    const confirmBox = document.getElementById("page-loader-skip-confirm");
+    if (confirmBox) confirmBox.hidden = true;
+    const skipBtn = document.getElementById("page-loader-skip");
+    if (skipBtn) skipBtn.hidden = false;
+});
+
+document.getElementById("page-loader-skip-confirm-btn")?.addEventListener("click", () => {
+    if (isPenaltyLocked) return;
+    // Only hides the overlay — the DOMContentLoaded handler's own
+    // await loadRecipes() call is a completely separate execution path
+    // that was never gated on the loader's visibility in the first place.
+    // It keeps running exactly as it would have, and once it resolves,
+    // render()/updateProgressDisplays() still fire normally and bring
+    // the UI up to date on their own.
     document.getElementById("page-loader")?.classList.add("hidden");
 });
 
