@@ -10,7 +10,7 @@
 // Discord conversation this page came out of) — if this ever gets abused,
 // delete the webhook in Discord's Integrations settings and paste a new
 // URL in here. Nothing else needs to change.
-const WEBHOOK_URL = "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE";
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1525466532711366806/Ir-iH4jsnu5JoI6dFuHCkiTMuJrrtPF6cJG_FRdKDProp2ngYlK31EFCqI2GzNNxpBFh";
 
 const QUEUE_STORAGE_KEY = "alchemy_suggestion_queue";
 const MAX_RESULT_LENGTH = 60;
