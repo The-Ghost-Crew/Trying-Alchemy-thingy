@@ -10,7 +10,7 @@
 // Discord conversation this page came out of) — if this ever gets abused,
 // delete the webhook in Discord's Integrations settings and paste a new
 // URL in here. Nothing else needs to change.
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1525466532711366806/Ir-iH4jsnu5JoI6dFuHCkiTMuJrrtPF6cJG_FRdKDProp2ngYlK31EFCqI2GzNNxpBFh";
+const WEBHOOK_URL = "PASTE_YOUR_DISCORD_WEBHOOK_URL_HERE";
 
 const QUEUE_STORAGE_KEY = "alchemy_suggestion_queue";
 const MAX_RESULT_LENGTH = 60;
@@ -48,6 +48,110 @@ async function loadRecipeUniverse() {
     runRecipes(recipe);
 }
 
+// Reads the SAME key the main game saves to — the picker only offers
+// elements this specific visitor has actually discovered, not the full
+// universe. universe.has() is still checked as a safety net, matching the
+// same "don't trust stale localStorage against a changed recipes.js"
+// pattern the main game already uses elsewhere.
+function loadDiscoveredElements() {
+    try {
+        const saved = localStorage.getItem("alchemy_discovered_elements");
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) {
+                return new Set(parsed.filter(el => typeof el === "string"));
+            }
+        }
+    } catch (e) {
+        console.warn("Could not load discovered elements:", e);
+    }
+    return new Set();
+}
+
+let pickable = new Set(); // discovered ∩ universe — what the pickers actually show
+
+// ---------- Content filter ----------
+//
+// Normalizes casing, common leetspeak substitutions, and separator-based
+// evasion (e.g. "n-i-g-g-e-r") all into one continuous lowercase string
+// before matching, so obfuscated variants get caught the same as plain
+// ones. Deliberately a short, targeted list rather than an exhaustive
+// slur dictionary — easy for you to extend directly in this array if
+// something else comes up.
+const BLOCKED_TERM_ROOTS = ["nigger", "nigga", "faggot"];
+
+const LEET_MAP = {
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s",
+    "7": "t", "8": "b", "@": "a", "$": "s", "!": "i"
+};
+
+function normalizeForFilter(text) {
+    let normalized = text.toLowerCase();
+    normalized = normalized.split("").map(ch => LEET_MAP[ch] || ch).join("");
+    // Strips everything except letters — collapses spaced-out or
+    // punctuation-separated evasion into one continuous string before
+    // the substring check runs.
+    normalized = normalized.replace(/[^a-z]/g, "");
+    return normalized;
+}
+
+function containsBlockedTerm(text) {
+    if (!text) return false;
+    const normalized = normalizeForFilter(text);
+    return BLOCKED_TERM_ROOTS.some(term => normalized.includes(term));
+}
+
+// ---------- Suggestion-page-scoped moderation lock ----------
+//
+// Deliberately scoped to THIS page only, not the main game's save data or
+// its anti-cheat penalty system — see the conversation this came out of.
+// Blocks further submissions from this browser for 8 hours; doesn't touch
+// game progress at all.
+const SUGGESTION_BLOCK_KEY = "alchemy_suggestion_blocked_until";
+const SUGGESTION_BLOCK_DURATION_MS = 8 * 60 * 60 * 1000;
+
+function getActiveSuggestionBlock() {
+    try {
+        const until = Number(localStorage.getItem(SUGGESTION_BLOCK_KEY) || 0);
+        return until > Date.now() ? until : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function showSuggestionBlockScreen(until) {
+    const main = document.querySelector("main");
+    if (!main) return;
+
+    const render = () => {
+        const remaining = until - Date.now();
+        if (remaining <= 0) {
+            location.reload();
+            return;
+        }
+        const hrs = Math.floor(remaining / 3600000);
+        const mins = Math.floor((remaining % 3600000) / 60000);
+        main.innerHTML = `
+          <div class="panel-card" style="text-align:center;">
+            <p style="color:var(--red); font-family:'IBM Plex Mono',monospace; font-size:0.9rem; text-transform:uppercase; letter-spacing:0.04em;">Submissions temporarily blocked</p>
+            <p style="color:var(--text-muted); font-size:0.9rem;">A submission here was flagged for inappropriate content. This is scoped to this page only — your game progress is untouched. You can try again in <strong style="color:var(--gold);">${hrs}h ${mins}m</strong>.</p>
+          </div>
+        `;
+    };
+    render();
+    setInterval(render, 30000);
+}
+
+function applySuggestionBlock() {
+    const until = Date.now() + SUGGESTION_BLOCK_DURATION_MS;
+    try {
+        localStorage.setItem(SUGGESTION_BLOCK_KEY, String(until));
+    } catch (e) {
+        console.warn("Could not save suggestion block:", e);
+    }
+    showSuggestionBlockScreen(until);
+}
+
 // ---------- Element pickers ----------
 
 let selectedA = null;
@@ -63,7 +167,7 @@ function renderPicker(slot) {
     const query = (searchEl?.value || "").toLowerCase().trim();
     listEl.innerHTML = "";
 
-    [...universe]
+    [...pickable]
         .sort((x, y) => x.localeCompare(y, undefined, { sensitivity: "base" }))
         .filter(el => el.toLowerCase().includes(query))
         .forEach(el => {
@@ -156,7 +260,12 @@ function addToQueue() {
     const resultInput = document.getElementById("suggestion-result");
     const creditInput = document.getElementById("suggestion-credit");
     const result = (resultInput?.value || "").trim();
+    const credit = (creditInput?.value || "").trim();
 
+    if (containsBlockedTerm(result) || containsBlockedTerm(credit)) {
+        applySuggestionBlock();
+        return;
+    }
     if (!result) {
         showSuggestStatus("Type what this should combine into first.");
         return;
@@ -178,7 +287,7 @@ function addToQueue() {
         a: selectedA,
         b: selectedB,
         result,
-        credit: (creditInput?.value || "").trim()
+        credit
     });
     saveQueue();
 
@@ -300,6 +409,12 @@ function setupTabs() {
 // ---------- Init ----------
 
 window.addEventListener("DOMContentLoaded", async () => {
+    const blockedUntil = getActiveSuggestionBlock();
+    if (blockedUntil) {
+        showSuggestionBlockScreen(blockedUntil);
+        return; // nothing else initializes while blocked
+    }
+
     loadQueue();
     setupTabs();
     renderQueueTab();
@@ -317,6 +432,9 @@ window.addEventListener("DOMContentLoaded", async () => {
         showSuggestStatus("Could not load the current element list — try refreshing.");
         return;
     }
+
+    const discovered = loadDiscoveredElements();
+    pickable = new Set([...discovered].filter(el => universe.has(el)));
 
     renderPicker("a");
     renderPicker("b");
