@@ -355,12 +355,19 @@ function renderTray() {
 }
 
 function updateProgress() {
-    const progressEl = document.getElementById("game-progress");
-    if (progressEl) progressEl.textContent = `${discovered.size} / ${universe.size} discovered`;
+    const seal = document.getElementById("game-progress-seal");
+    if (seal) {
+        const fraction = seal.querySelector(".progress-fraction");
+        if (fraction) fraction.textContent = `${discovered.size} / ${universe.size}`;
+        seal.classList.toggle("complete", discovered.size >= universe.size && universe.size > 0);
+    }
+
+    const treeFraction = document.querySelector("#game-tree-header .progress-fraction");
+    if (treeFraction) treeFraction.textContent = `${discovered.size} / ${universe.size}`;
 
     const banner = document.getElementById("game-complete-banner");
     if (banner) {
-        const complete = discovered.size >= universe.size;
+        const complete = discovered.size >= universe.size && universe.size > 0;
         banner.hidden = !complete;
         if (complete) {
             // Deliberately no "suggest an element" link here, unlike the
@@ -406,20 +413,22 @@ function renderFamilyTree() {
             const card = document.createElement("div");
             card.className = "tree-card";
 
-            const h4 = document.createElement("h4");
-            h4.textContent = el;
-            if (moddedElements.has(el)) h4.style.color = "#b9a3ef";
-            card.appendChild(h4);
+            const h3 = document.createElement("h3");
+            h3.textContent = el;
+            if (moddedElements.has(el)) h3.style.color = "#b9a3ef";
+            card.appendChild(h3);
 
             const madeFrom = recipeList.filter(r => r.result === el);
             if (madeFrom.length > 0) {
                 madeFrom.forEach(r => {
                     const p = document.createElement("p");
+                    p.className = "tree-origin";
                     p.textContent = `Made from: ${r.ingredients.join(" + ")}`;
                     card.appendChild(p);
                 });
             } else if (startingElements.includes(el)) {
                 const p = document.createElement("p");
+                p.className = "tree-origin";
                 p.textContent = "Starting element";
                 card.appendChild(p);
             }
@@ -442,7 +451,6 @@ function renderImpossibleNotice() {
     container.appendChild(h2);
 
     const summaryP = document.createElement("p");
-    summaryP.className = "help";
     summaryP.textContent = loadSummaryText;
     container.appendChild(summaryP);
 
@@ -518,6 +526,7 @@ function setupGameAboutToggles() {
         // Simplified stub for this build, as flagged before starting —
         // no audio engine wired up yet, just the toggle state itself.
         musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+        musicBtn.classList.toggle("on", musicEnabled);
         musicBtn.addEventListener("click", () => {
             musicEnabled = !musicEnabled;
             musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
@@ -527,6 +536,12 @@ function setupGameAboutToggles() {
 }
 
 function launchCustomGame() {
+    // The uploaded file might never actually mention one of the starting
+    // elements (e.g. never uses "fire" as an ingredient or result at all)
+    // — without this, universe.size could be smaller than discovered.size
+    // from the very start, producing a nonsensical "4 / 3 discovered."
+    startingElements.forEach(el => universe.add(el));
+
     discovered = new Set(startingElements);
     first = null;
     combineTray = [];
