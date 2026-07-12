@@ -67,8 +67,9 @@ function renderStartingElements() {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "starting-chip-remove";
-        removeBtn.textContent = "×";
+        removeBtn.textContent = "✕";
         removeBtn.setAttribute("aria-label", `Remove ${el}`);
+        removeBtn.title = `Remove ${el}`;
         removeBtn.addEventListener("click", () => {
             startingElements.splice(index, 1);
             renderStartingElements();
@@ -107,6 +108,23 @@ function setupStartingElementsEditor() {
 }
 
 // ---------- File upload + validation ----------
+
+// Native <input type="file"> can't be restyled directly in any
+// cross-browser way — the "Choose File" chrome is OS/browser-rendered
+// and resists normal CSS. Standard fix: keep the real input, but hide it
+// and trigger it via a button we fully control, then show the picked
+// filename in our own themed element instead of the browser's default text.
+function setupFileUploadControl() {
+    const trigger = document.getElementById("file-upload-trigger");
+    const input = document.getElementById("recipe-file-input");
+    const filenameEl = document.getElementById("file-upload-filename");
+
+    trigger?.addEventListener("click", () => input?.click());
+    input?.addEventListener("change", () => {
+        const file = input.files?.[0];
+        if (filenameEl) filenameEl.textContent = file ? file.name : "No file selected";
+    });
+}
 
 function readUploadedFile(file) {
     return new Promise((resolve, reject) => {
@@ -177,8 +195,22 @@ async function handleLoadCustom() {
 
 // ---------- Init ----------
 
-window.addEventListener("DOMContentLoaded", () => {
+// A plain window.addEventListener("DOMContentLoaded", ...) silently does
+// nothing if that event already fired before this script got to this
+// line — which can happen depending on load/caching timing. readyState
+// covers both cases correctly instead of assuming the event is still
+// pending.
+function onReady(fn) {
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fn);
+    } else {
+        fn();
+    }
+}
+
+onReady(() => {
     setupStartingElementsEditor();
+    setupFileUploadControl();
     document.getElementById("load-custom-btn")?.addEventListener("click", handleLoadCustom);
 });
 
