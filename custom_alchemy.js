@@ -1,23 +1,41 @@
 (function () {
 "use strict";
 
-// ---------- Config state ----------
+// =====================================================================
+// Custom Alchemy ("Mods") — a direct port of game.js, stripped to what
+// this mode uses (no graph, no sets, no credits, no anti-cheat, no
+// save/backup) and generalized ONLY where N-ingredient mixing requires
+// it. Wherever a function body matches game.js, it was copied, not
+// reconstructed. Custom-game progress is intentionally per-session:
+// nothing about discovered elements persists, so loading a different
+// ruleset later can never collide with a stale save from this one.
+// Sound/music/volume/sort/dead-end prefs DO share the main game's
+// localStorage keys on purpose — same person, same preferences.
+// =====================================================================
+
+// ---------- Wizard config state ----------
 
 let configuredMaxArity = 2;
 let startingElements = ["air", "water", "fire", "earth"];
+const moddedElements = new Set(); // introduced by the uploaded file specifically, not the base game
+let loadSummaryText = "";
 
-// ---------- Recipe data (generalized to N ingredients, unlike the main
-// game's fixed 2-ingredient recipe()) ----------
+// ---------- Recipe data (generalized to N ingredients) ----------
 
-const recipes = {}; // sorted-ingredients-joined -> result
-const recipeList = []; // { ingredients: [...], result }
+const recipes = {};        // lookup: sorted-ingredients key -> result
+const recipeList = [];     // full list: { ingredients: [...], result }
 const universe = new Set();
+const recipesByElement = new Map(); // element -> recipes it appears in as an ingredient
 let maxArityFound = 0;
-const skippedLines = []; // recipes rejected for arity violations
+const skippedLines = [];
+
+function comboKey(ingredients) {
+    return [...ingredients].map(String).sort().join("|");
+}
 
 // Variable-arity: the LAST argument is always the result, everything
 // before it is an ingredient. recipe("air","water","water","superMist")
-// has 3 ingredients and one result, exactly matching the requested format.
+// has 3 ingredients and one result.
 function recipe(...args) {
     if (args.length < 3) {
         skippedLines.push({ args, reason: "needs at least 2 ingredients and a result" });
@@ -33,8 +51,7 @@ function recipe(...args) {
         return;
     }
 
-    const key = [...ingredients].sort().join("|");
-    recipes[key] = result;
+    recipes[comboKey(ingredients)] = result; // last-write-wins: the uploaded file loads after base, so mods override
     recipeList.push({ ingredients, result });
     ingredients.forEach(i => universe.add(i));
     universe.add(result);
@@ -45,11 +62,896 @@ function resetRecipeData() {
     Object.keys(recipes).forEach(k => delete recipes[k]);
     recipeList.length = 0;
     universe.clear();
+    recipesByElement.clear();
+    moddedElements.clear();
     skippedLines.length = 0;
     maxArityFound = 0;
 }
 
-// ---------- Starting elements editor ----------
+function combine(ingredients) {
+    return recipes[comboKey(ingredients)] || null;
+}
+
+function buildRecipesByElement() {
+    recipesByElement.clear();
+    recipeList.forEach(r => {
+        new Set(r.ingredients).forEach(ing => {
+            if (!recipesByElement.has(ing)) recipesByElement.set(ing, []);
+            recipesByElement.get(ing).push(r);
+        });
+    });
+}
+
+function recipesInvolving(el) {
+    return recipesByElement.get(el) || [];
+}
+
+// Same definition as the main game, generalized: dead end once every
+// recipe it appears in already leads to something discovered. An element
+// appearing in no recipes at all has nothing left to give by definition.
+function isExhausted(el) {
+    return recipesInvolving(el).every(r => discovered.has(r.result));
+}
+
+function hasActionableCombo(el) {
+    return recipesInvolving(el).some(
+        r => !discovered.has(r.result) && r.ingredients.every(ing => discovered.has(ing))
+    );
+}
+
+// Fixpoint reachability from the starting elements — used by the
+// "Impossible elements" report in About.
+function computeReachable() {
+    const reachable = new Set(startingElements);
+    let changed = true;
+    while (changed) {
+        changed = false;
+        recipeList.forEach(r => {
+            if (reachable.has(r.result)) return;
+            if (r.ingredients.every(ing => reachable.has(ing))) {
+                reachable.add(r.result);
+                changed = true;
+            }
+        });
+    }
+    return reachable;
+}
+
+// ---------- Discovery state (session-only, on purpose) ----------
+
+let discovered = new Set();
+let discoveryOrder = [];
+let first = null;        // classic 2-tap selection (maxArity === 2)
+let combineTray = [];    // multi-select tray (maxArity > 2)
+let treeDirty = true;    // tree list rebuilt lazily on tab open, same as main
+
+// ---------- Sound system (copied from game.js) ----------
+
+const SOUND_STORAGE_KEY = "alchemy_sound_enabled";
+let soundEnabled = true;
+let audioCtx = null;
+
+function getAudioCtx() {
+    if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtx = new Ctx();
+    }
+    return audioCtx;
+}
+
+function playTone(freq, duration, delay, gainValue) {
+    if (!soundEnabled) return;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") ctx.resume();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.value = gainValue;
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        const startTime = ctx.currentTime + delay;
+        osc.start(startTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        osc.stop(startTime + duration + 0.02);
+    } catch (e) {
+        console.warn("Sound playback failed:", e);
+    }
+}
+
+// ---------- Background music (copied from game.js, whole composition) ----------
+
+function playMusicTone(freq, start, duration, type, volume) {
+    if (!soundEnabled || !musicEnabled) return;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(volume, start + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + duration + 0.05);
+    } catch (e) {
+        console.warn("Music playback failed:", e);
+    }
+}
+
+const AMBIENT_LOOP_DURATION_MS = 23500;
+
+let musicVolume = 1.0;
+
+function playAmbientLoop() {
+    if (!musicEnabled) return;
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime + 0.1;
+    const v = gain => gain * musicVolume;
+
+    // Drone: open fifth (D-A) under phrase A, shifting to an open fourth
+    // (D-G) under phrase B.
+    playMusicTone(146.83, now, 10, "sine", v(0.05)); // D3
+    playMusicTone(220.0, now, 10, "triangle", v(0.03)); // A3
+    playMusicTone(146.83, now + 10, 14, "sine", v(0.05)); // D3
+    playMusicTone(196.0, now + 10, 14, "triangle", v(0.03)); // G3
+
+    const phraseA = [
+        { n: 293.66, t: 0.0, l: 0.9 }, // D4
+        { n: 349.23, t: 1.1, l: 0.7 }, // F4
+        { n: 392.0, t: 2.2, l: 1.0 }, // G4
+        { n: 440.0, t: 3.5, l: 0.8 }, // A4
+        { n: 392.0, t: 4.7, l: 0.9 }, // G4
+        { n: 349.23, t: 5.8, l: 0.9 }, // F4
+        { n: 329.63, t: 7.0, l: 0.8 }, // E4
+        { n: 293.66, t: 8.1, l: 1.4 } // D4 — settles
+    ];
+
+    const phraseB = [
+        { n: 440.0, t: 10.0, l: 0.8 }, // A4
+        { n: 493.88, t: 11.2, l: 0.7 }, // B4 — Dorian 6th
+        { n: 523.25, t: 12.3, l: 0.9 }, // C5
+        { n: 587.33, t: 13.6, l: 1.0 }, // D5 — peak
+        { n: 523.25, t: 15.0, l: 0.8 }, // C5
+        { n: 493.88, t: 16.1, l: 0.8 }, // B4
+        { n: 440.0, t: 17.2, l: 0.8 }, // A4
+        { n: 392.0, t: 18.4, l: 0.8 }, // G4
+        { n: 349.23, t: 19.6, l: 0.9 }, // F4
+        { n: 293.66, t: 20.9, l: 1.8 } // D4 — resolves home
+    ];
+
+    phraseA.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", v(0.045)));
+    phraseB.forEach(note => playMusicTone(note.n, now + note.t, note.l, "triangle", v(0.045)));
+
+    playMusicTone(587.33, now + 8.3, 0.5, "sine", v(0.02)); // D5 shimmer
+    playMusicTone(880.0, now + 13.8, 0.4, "sine", v(0.018)); // A5 shimmer
+}
+
+const MUSIC_STORAGE_KEY = "alchemy_music_enabled";
+const MUSIC_VOLUME_KEY = "alchemy_music_volume";
+let musicEnabled = true;
+let musicLoopInterval = null;
+
+function loadMusicPreference() {
+    try {
+        const saved = localStorage.getItem(MUSIC_STORAGE_KEY);
+        if (saved !== null) musicEnabled = saved === "true";
+    } catch (e) {
+        console.warn("Could not load music preference:", e);
+    }
+    try {
+        const savedVolume = localStorage.getItem(MUSIC_VOLUME_KEY);
+        if (savedVolume !== null) {
+            const parsed = parseFloat(savedVolume);
+            if (!Number.isNaN(parsed)) musicVolume = Math.min(1, Math.max(0, parsed));
+        }
+    } catch (e) {
+        console.warn("Could not load music volume:", e);
+    }
+}
+
+let musicStartInFlight = false;
+
+async function startMusic() {
+    if (musicLoopInterval || musicStartInFlight) return;
+    musicStartInFlight = true;
+    try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        if (ctx.state === "suspended") {
+            try {
+                await ctx.resume();
+            } catch (e) {
+                console.warn("Could not resume audio context:", e);
+                return;
+            }
+        }
+        if (!musicEnabled) return;
+        playAmbientLoop();
+        musicLoopInterval = setInterval(playAmbientLoop, AMBIENT_LOOP_DURATION_MS);
+    } finally {
+        musicStartInFlight = false;
+    }
+}
+
+function stopMusic() {
+    if (musicLoopInterval) {
+        clearInterval(musicLoopInterval);
+        musicLoopInterval = null;
+    }
+}
+
+function armFirstInteractionMusicStart() {
+    const tryStart = () => {
+        if (musicEnabled) startMusic();
+        document.removeEventListener("click", tryStart);
+        document.removeEventListener("touchstart", tryStart);
+    };
+    document.addEventListener("click", tryStart, { once: true });
+    document.addEventListener("touchstart", tryStart, { once: true });
+}
+
+function updateMusicToggleLabel() {
+    const btn = document.getElementById("music-toggle");
+    if (!btn) return;
+    btn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+    btn.classList.toggle("muted", !musicEnabled);
+}
+
+function setupMusicToggle() {
+    const btn = document.getElementById("music-toggle");
+    if (!btn) return;
+
+    updateMusicToggleLabel();
+
+    btn.addEventListener("click", () => {
+        musicEnabled = !musicEnabled;
+        try {
+            localStorage.setItem(MUSIC_STORAGE_KEY, String(musicEnabled));
+        } catch (e) {
+            console.warn("Could not save music preference:", e);
+        }
+        updateMusicToggleLabel();
+        if (musicEnabled) startMusic();
+        else stopMusic();
+
+        btn.disabled = true;
+        setTimeout(() => {
+            btn.disabled = false;
+        }, 250);
+    });
+}
+
+function setupMusicVolumeSlider() {
+    const slider = document.getElementById("music-volume");
+    const label = document.getElementById("music-volume-label");
+    if (!slider) return;
+
+    slider.value = Math.round(musicVolume * 100);
+    if (label) label.textContent = `${slider.value}%`;
+
+    slider.addEventListener("input", () => {
+        musicVolume = Number(slider.value) / 100;
+        if (label) label.textContent = `${slider.value}%`;
+        try {
+            localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+        } catch (e) {
+            console.warn("Could not save music volume:", e);
+        }
+    });
+}
+
+function playDiscoverySound() {
+    playTone(523.25, 0.12, 0, 0.18);    // C5
+    playTone(783.99, 0.16, 0.09, 0.18); // G5
+}
+
+function playNothingSound() {
+    playTone(196, 0.18, 0, 0.12);
+}
+
+function loadSoundPreference() {
+    try {
+        const saved = localStorage.getItem(SOUND_STORAGE_KEY);
+        if (saved !== null) soundEnabled = saved === "true";
+    } catch (e) {
+        console.warn("Could not load sound preference:", e);
+    }
+}
+
+function setupSoundToggle() {
+    const btn = document.getElementById("sound-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = soundEnabled ? "Sound: On" : "Sound: Off";
+        btn.classList.toggle("muted", !soundEnabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        soundEnabled = !soundEnabled;
+        try {
+            localStorage.setItem(SOUND_STORAGE_KEY, String(soundEnabled));
+        } catch (e) {
+            console.warn("Could not save sound preference:", e);
+        }
+        updateLabel();
+
+        if (soundEnabled) {
+            if (!musicEnabled) {
+                musicEnabled = true;
+                try {
+                    localStorage.setItem(MUSIC_STORAGE_KEY, "true");
+                } catch (e) {
+                    console.warn("Could not save music preference:", e);
+                }
+                updateMusicToggleLabel();
+            }
+            startMusic();
+            playDiscoverySound();
+        } else {
+            stopMusic();
+        }
+    });
+}
+
+// ---------- "Just found" flash (copied from game.js) ----------
+
+let lastDiscovered = null;
+let lastDiscoveredTimer = null;
+
+function markJustDiscovered(element) {
+    lastDiscovered = element;
+    if (lastDiscoveredTimer) clearTimeout(lastDiscoveredTimer);
+    lastDiscoveredTimer = setTimeout(() => {
+        lastDiscovered = null;
+        lastDiscoveredTimer = null;
+        render();
+    }, 2000);
+}
+
+// ---------- Progress displays (copied from game.js) ----------
+
+function updateProgressDisplays() {
+    const count = discovered.size;
+    const total = universe.size;
+    const deadEnds = [...discovered].filter(isExhausted).length;
+    const complete = count >= total && total > 0;
+
+    document.querySelectorAll(".progress-fraction").forEach(n => (n.textContent = `${count} / ${total}`));
+    document.querySelectorAll(".dead-end-count").forEach(
+        n => (n.textContent = `${deadEnds} dead end${deadEnds === 1 ? "" : "s"} found`)
+    );
+
+    const seal = document.getElementById("progress-seal");
+    if (seal) seal.classList.toggle("complete", complete);
+
+    const banner = document.getElementById("complete-banner");
+    if (banner) banner.hidden = !complete;
+}
+
+// ---------- Combine (shared by both interaction modes) ----------
+
+function attemptCombine(ingredients) {
+    const result = combine(ingredients);
+    resetHintIdleTimer(); // a combine attempt, success or not, resets the idle nudge
+
+    const resultEl = document.getElementById("result");
+    if (resultEl) {
+        resultEl.textContent = result
+            ? `${ingredients.join(" + ")} = ${result}`
+            : `${ingredients.join(" + ")} = nothing happens`;
+        resultEl.classList.remove("flash");
+        void resultEl.offsetWidth; // restart the animation even for repeat results
+        resultEl.classList.add("flash");
+    }
+
+    if (result && !discovered.has(result)) {
+        discovered.add(result);
+        discoveryOrder.push(result);
+        markJustDiscovered(result);
+        treeDirty = true;
+        playDiscoverySound();
+    } else if (!result) {
+        playNothingSound();
+    }
+
+    updateProgressDisplays();
+    render();
+    return result;
+}
+
+// ---------- Elements tab (tile from game.js, click adapted for N-ary) ----------
+
+function makeElementTile(element) {
+    const button = document.createElement("button");
+    button.className = "element-tile";
+    const isSelected = configuredMaxArity === 2 ? element === first : combineTray.includes(element);
+    button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    if (isSelected) button.classList.add("selected");
+    if (isExhausted(element)) button.classList.add("dead-end");
+    if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
+    if (greenHintPair && greenHintPair.includes(element)) button.classList.add("hint-pair");
+    if (element === lastDiscovered) button.classList.add("just-found");
+    if (moddedElements.has(element)) button.classList.add("modded");
+
+    button.appendChild(document.createTextNode(element));
+
+    button.onclick = () => {
+        if (configuredMaxArity === 2) {
+            if (first === null) {
+                first = element;
+                render();
+                return;
+            }
+            const chosenFirst = first;
+            first = null;
+            attemptCombine([chosenFirst, element]);
+        } else {
+            // Tray mode: duplicates allowed on purpose — water + water is
+            // a legitimate combo, so the same tile can be added repeatedly
+            // up to the configured cap.
+            if (combineTray.length >= configuredMaxArity) return;
+            combineTray.push(element);
+            renderTray();
+            render(); // refresh selected highlighting on tiles
+        }
+    };
+
+    return button;
+}
+
+function renderTray() {
+    const tray = document.getElementById("combine-tray");
+    const btn = document.getElementById("combine-btn");
+    if (!tray || !btn) return;
+
+    tray.innerHTML = "";
+    combineTray.forEach((el, index) => {
+        const chip = document.createElement("span");
+        chip.className = "starting-chip";
+
+        const label = document.createElement("span");
+        label.textContent = el;
+        chip.appendChild(label);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "starting-chip-remove";
+        removeBtn.textContent = "\u2715";
+        removeBtn.setAttribute("aria-label", `Remove ${el}`);
+        removeBtn.addEventListener("click", () => {
+            combineTray.splice(index, 1);
+            renderTray();
+            render();
+        });
+        chip.appendChild(removeBtn);
+
+        tray.appendChild(chip);
+    });
+
+    btn.disabled = combineTray.length < 2;
+}
+
+function setupCombineUI() {
+    const btn = document.getElementById("combine-btn");
+    const tray = document.getElementById("combine-tray");
+    if (configuredMaxArity > 2) {
+        if (btn) btn.hidden = false;
+        if (tray) tray.hidden = false;
+    }
+    btn?.addEventListener("click", () => {
+        if (combineTray.length < 2) return;
+        attemptCombine([...combineTray]);
+        combineTray = [];
+        renderTray();
+    });
+}
+
+// ---------- Dead-end collapse (copied from game.js) ----------
+
+const DEADEND_COLLAPSE_KEY = "alchemy_deadend_collapsed";
+let deadEndCollapsed = true;
+
+function loadDeadEndCollapsePreference() {
+    try {
+        const saved = localStorage.getItem(DEADEND_COLLAPSE_KEY);
+        if (saved !== null) deadEndCollapsed = saved === "true";
+    } catch (e) {
+        console.warn("Could not load dead-end section preference:", e);
+    }
+}
+
+function applyDeadEndCollapse() {
+    document.querySelectorAll(".dead-end-toggle-target").forEach(box => {
+        box.hidden = deadEndCollapsed;
+    });
+    document.querySelectorAll(".dead-end-toggle-btn").forEach(btn => {
+        btn.classList.toggle("collapsed", deadEndCollapsed);
+    });
+}
+
+function setupDeadEndToggle() {
+    document.querySelectorAll(".dead-end-toggle-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            deadEndCollapsed = !deadEndCollapsed;
+            try {
+                localStorage.setItem(DEADEND_COLLAPSE_KEY, String(deadEndCollapsed));
+            } catch (e) {
+                console.warn("Could not save dead-end section preference:", e);
+            }
+            applyDeadEndCollapse();
+        });
+    });
+    applyDeadEndCollapse();
+}
+
+// ---------- Sort mode (copied from game.js) ----------
+
+const SORT_MODE_KEY = "alchemy_sort_mode";
+let sortMode = "alpha";
+
+function loadSortModePreference() {
+    try {
+        const saved = localStorage.getItem(SORT_MODE_KEY);
+        if (saved === "alpha" || saved === "recent") sortMode = saved;
+    } catch (e) {
+        console.warn("Could not load sort mode preference:", e);
+    }
+}
+
+function setupSortToggle() {
+    const buttons = document.querySelectorAll(".sort-toggle");
+    buttons.forEach(btn => btn.classList.toggle("active", btn.dataset.sort === sortMode));
+
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            sortMode = btn.dataset.sort;
+            try {
+                localStorage.setItem(SORT_MODE_KEY, sortMode);
+            } catch (e) {
+                console.warn("Could not save sort mode preference:", e);
+            }
+            buttons.forEach(b => b.classList.toggle("active", b.dataset.sort === sortMode));
+            render();
+        });
+    });
+}
+
+function sortElements(list) {
+    if (sortMode === "recent") {
+        return [...list].sort((a, b) => {
+            const aRank = discoveryOrder.indexOf(a);
+            const bRank = discoveryOrder.indexOf(b);
+            if (aRank !== bRank) return bRank - aRank;
+            return a.localeCompare(b, undefined, { sensitivity: "base" });
+        });
+    }
+    return [...list].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+}
+
+// ---------- Hint Mode (from game.js; toggle persistence intentionally
+// dropped — the wizard's radio owns the starting value per ruleset) ----------
+
+let hintModeEnabled = false;
+
+function setupHintModeToggle() {
+    const btn = document.getElementById("hint-mode-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+        btn.classList.toggle("muted", !hintModeEnabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        hintModeEnabled = !hintModeEnabled;
+        updateLabel();
+        render();
+        if (hintModeEnabled) resetHintIdleTimer();
+        else stopHintIdleTimer();
+    });
+}
+
+// Idle "what to make next" nudge — generalized: the green suggestion is
+// now the full ingredient set of one actionable recipe (2 elements in
+// classic mode, up to N in tray mode), all highlighted together.
+const HINT_IDLE_DELAY_MS = 20000;
+let hintIdleTimer = null;
+let greenHintPair = null;
+
+function findRandomActionablePair() {
+    const candidates = recipeList.filter(
+        r => !discovered.has(r.result) && r.ingredients.every(ing => discovered.has(ing))
+    );
+    if (candidates.length === 0) return null;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    return [...pick.ingredients];
+}
+
+function showGreenHint() {
+    if (!hintModeEnabled) return;
+    greenHintPair = findRandomActionablePair();
+    render();
+}
+
+function clearGreenHint() {
+    if (greenHintPair !== null) {
+        greenHintPair = null;
+        render();
+    }
+}
+
+function resetHintIdleTimer() {
+    if (hintIdleTimer) {
+        clearInterval(hintIdleTimer);
+        hintIdleTimer = null;
+    }
+    clearGreenHint();
+    if (!hintModeEnabled) return;
+    hintIdleTimer = setInterval(showGreenHint, HINT_IDLE_DELAY_MS);
+}
+
+function stopHintIdleTimer() {
+    if (hintIdleTimer) {
+        clearInterval(hintIdleTimer);
+        hintIdleTimer = null;
+    }
+    clearGreenHint();
+}
+
+// ---------- render() (copied from game.js) ----------
+
+function render() {
+    const activeBox = document.getElementById("elements");
+    const deadBox = document.getElementById("dead-end-elements");
+    const deadSection = document.getElementById("dead-end-section");
+    if (!activeBox || !deadBox) return;
+
+    activeBox.innerHTML = "";
+    deadBox.innerHTML = "";
+
+    const query = (document.getElementById("search")?.value || "").toLowerCase().trim();
+
+    const filtered = sortElements([...discovered].filter(el => universe.has(el))).filter(el =>
+        el.toLowerCase().includes(query)
+    );
+
+    let active = filtered.filter(el => !isExhausted(el));
+    const dead = filtered.filter(el => isExhausted(el));
+
+    if (hintModeEnabled) {
+        const isGreenPair = el => greenHintPair && greenHintPair.includes(el);
+        const greenPair = active.filter(isGreenPair);
+        const hintable = active.filter(el => hasActionableCombo(el) && !isGreenPair(el));
+        const rest = active.filter(el => !hasActionableCombo(el) && !isGreenPair(el));
+        active = [...greenPair, ...hintable, ...rest];
+    }
+
+    active.forEach(el => activeBox.appendChild(makeElementTile(el)));
+    dead.forEach(el => deadBox.appendChild(makeElementTile(el)));
+
+    if (deadSection) deadSection.hidden = dead.length === 0;
+}
+
+// ---------- Family Tree list (copied from game.js, N-ary adapted) ----------
+
+function computeDisplayDepths(discoveredSet) {
+    const depth = new Map();
+    startingElements.forEach(el => {
+        if (discoveredSet.has(el)) depth.set(el, 0);
+    });
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        for (const r of recipeList) {
+            if (!discoveredSet.has(r.result)) continue;
+            if (r.ingredients.every(ing => depth.has(ing))) {
+                const candidate = Math.max(...r.ingredients.map(ing => depth.get(ing))) + 1;
+                if (!depth.has(r.result) || candidate < depth.get(r.result)) {
+                    depth.set(r.result, candidate);
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    return depth;
+}
+
+function buildDetailFragment(element, depths) {
+    const frag = document.createDocumentFragment();
+
+    const heading = document.createElement("h3");
+    if (moddedElements.has(element)) heading.className = "modded-name";
+    heading.appendChild(document.createTextNode(element));
+    frag.appendChild(heading);
+
+    const origin = recipeList.find(r => r.result === element);
+    const originLine = document.createElement("p");
+    originLine.className = "tree-origin";
+    originLine.textContent = origin ? `Made from ${origin.ingredients.join(" + ")}` : "Starting element";
+    frag.appendChild(originLine);
+
+    if (depths && depths.has(element)) {
+        const depthLine = document.createElement("p");
+        depthLine.className = "tree-origin";
+        const d = depths.get(element);
+        depthLine.textContent = `${d} step${d === 1 ? "" : "s"} from the base elements`;
+        frag.appendChild(depthLine);
+    }
+
+    const usedIn = recipeList.filter(r => r.ingredients.includes(element) && discovered.has(r.result));
+    if (usedIn.length > 0) {
+        const usedHeading = document.createElement("p");
+        usedHeading.className = "tree-used-label";
+        usedHeading.textContent = "Combines into:";
+        frag.appendChild(usedHeading);
+
+        const list = document.createElement("ul");
+        usedIn.forEach(r => {
+            // "The other ingredients": remove exactly ONE instance of this
+            // element, so water in water+water correctly shows "+ water".
+            const others = [...r.ingredients];
+            others.splice(others.indexOf(element), 1);
+            const li = document.createElement("li");
+            li.textContent = `+ ${others.join(" + ")} \u2192 ${r.result}`;
+            list.appendChild(li);
+        });
+        frag.appendChild(list);
+    }
+
+    if (isExhausted(element)) {
+        const deadNote = document.createElement("p");
+        deadNote.className = "tree-dead-note";
+        deadNote.textContent = "Dead end — no remaining combination for this element will produce anything new.";
+        frag.appendChild(deadNote);
+    } else {
+        const pending = recipesInvolving(element).filter(r => !discovered.has(r.result));
+        const actionable = pending.filter(r => r.ingredients.every(ing => discovered.has(ing)));
+
+        if (actionable.length > 0) {
+            const hint = document.createElement("p");
+            hint.className = "tree-hint";
+            hint.textContent = `${actionable.length} undiscovered combination${
+                actionable.length > 1 ? "s" : ""
+            } waiting among your elements.`;
+            frag.appendChild(hint);
+        } else {
+            const hint = document.createElement("p");
+            hint.className = "tree-pending";
+            hint.textContent = `Not a dead end yet — ${pending.length} combination${
+                pending.length > 1 ? "s" : ""
+            } still possible once you find the right partner.`;
+            frag.appendChild(hint);
+        }
+    }
+
+    return frag;
+}
+
+function renderTreeList() {
+    const container = document.getElementById("tree");
+    const deadContainer = document.getElementById("tree-dead-list");
+    const deadSection = document.getElementById("tree-dead-section");
+    if (!container) return;
+
+    container.innerHTML = "";
+    if (deadContainer) deadContainer.innerHTML = "";
+
+    const allValid = [...discovered].filter(el => universe.has(el));
+    const depths = computeDisplayDepths(new Set(allValid));
+
+    const query = (document.getElementById("tree-search")?.value || "").toLowerCase().trim();
+    const visible = allValid
+        .filter(el => el.toLowerCase().includes(query))
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+    const active = visible.filter(el => !isExhausted(el));
+    const dead = visible.filter(el => isExhausted(el));
+
+    active.forEach(element => {
+        const card = document.createElement("div");
+        card.className = "tree-card";
+        card.appendChild(buildDetailFragment(element, depths));
+        container.appendChild(card);
+    });
+
+    if (deadContainer) {
+        dead.forEach(element => {
+            const card = document.createElement("div");
+            card.className = "tree-card dead-end-card";
+            card.appendChild(buildDetailFragment(element, depths));
+            deadContainer.appendChild(card);
+        });
+    }
+
+    if (deadSection) deadSection.hidden = dead.length === 0;
+}
+
+function setupTreeSearch() {
+    const input = document.getElementById("tree-search");
+    if (!input) return;
+    input.addEventListener("input", () => {
+        renderTreeList();
+    });
+}
+
+// ---------- Impossible elements (About > Information) ----------
+
+function renderImpossibleNotice() {
+    const container = document.getElementById("impossible-notice");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const h2 = document.createElement("h2");
+    h2.textContent = "Impossible elements";
+    container.appendChild(h2);
+
+    const summaryP = document.createElement("p");
+    summaryP.textContent = loadSummaryText;
+    container.appendChild(summaryP);
+
+    const reachable = computeReachable();
+    const impossible = [...universe].filter(el => !reachable.has(el)).sort();
+
+    const p = document.createElement("p");
+    if (impossible.length === 0) {
+        p.textContent = "None — every element in this ruleset can be reached from the starting elements.";
+        container.appendChild(p);
+        return;
+    }
+
+    p.textContent = `${impossible.length} element${impossible.length === 1 ? "" : "s"} can never actually be made with this ruleset:`;
+    container.appendChild(p);
+
+    const ul = document.createElement("ul");
+    impossible.forEach(el => {
+        const li = document.createElement("li");
+        li.textContent = el;
+        ul.appendChild(li);
+    });
+    container.appendChild(ul);
+}
+
+// ---------- Tabs (main game pattern, scoped to the game view) ----------
+
+function setupGameTabs() {
+    const tabButtons = document.querySelectorAll("#game-view button.tab-button");
+    const panels = document.querySelectorAll("#game-view .tab-panel");
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            tabButtons.forEach(b => b.classList.remove("active"));
+            panels.forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
+            if (btn.dataset.tab === "tree" && treeDirty) {
+                renderTreeList();
+                treeDirty = false;
+            }
+        });
+    });
+}
+
+// ---------- Wizard: starting elements editor ----------
 
 function renderStartingElements() {
     const container = document.getElementById("starting-elements-list");
@@ -67,7 +969,7 @@ function renderStartingElements() {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "starting-chip-remove";
-        removeBtn.textContent = "✕";
+        removeBtn.textContent = "\u2715";
         removeBtn.setAttribute("aria-label", `Remove ${el}`);
         removeBtn.title = `Remove ${el}`;
         removeBtn.addEventListener("click", () => {
@@ -107,13 +1009,8 @@ function setupStartingElementsEditor() {
     });
 }
 
-// ---------- File upload + validation ----------
+// ---------- Wizard: file upload + load ----------
 
-// Native <input type="file"> can't be restyled directly in any
-// cross-browser way — the "Choose File" chrome is OS/browser-rendered
-// and resists normal CSS. Standard fix: keep the real input, but hide it
-// and trigger it via a button we fully control, then show the picked
-// filename in our own themed element instead of the browser's default text.
 function setupFileUploadControl() {
     const trigger = document.getElementById("file-upload-trigger");
     const input = document.getElementById("recipe-file-input");
@@ -142,8 +1039,6 @@ function showLoadStatus(msg, isError = false) {
     el.classList.toggle("load-status-error", isError);
 }
 
-const moddedElements = new Set(); // elements introduced specifically by the uploaded file, not the base game
-
 async function handleLoadCustom() {
     const fileInput = document.getElementById("recipe-file-input");
     const file = fileInput?.files?.[0];
@@ -166,12 +1061,9 @@ async function handleLoadCustom() {
     hintModeEnabled = document.querySelector('input[name="hint-mode"]:checked')?.value === "yes";
 
     resetRecipeData();
-    moddedElements.clear();
 
-    // Base game loaded FIRST so the uploaded file's recipe() calls can
-    // deliberately override any base combination (last-write-wins on the
-    // recipes dict) — a mod replacing base behavior seems like the more
-    // useful default than the reverse.
+    // Base game loads FIRST so the uploaded file can deliberately override
+    // any base combination (last-write-wins on the recipes dict).
     if (includeBase) {
         try {
             const baseRes = await fetch("recipes.js", { cache: "no-store" });
@@ -181,8 +1073,6 @@ async function handleLoadCustom() {
             }
         } catch (e) {
             console.warn("Could not load base game recipes:", e);
-            // Not fatal — the custom file still loads on its own below
-            // rather than blocking the whole thing over an optional merge.
         }
     }
 
@@ -209,342 +1099,33 @@ async function handleLoadCustom() {
         return;
     }
 
-    // Anything new relative to the pre-custom-file snapshot came from the
-    // uploaded file specifically — including when base game wasn't loaded
-    // at all, in which case everything qualifies correctly by definition.
+    // Anything new relative to the pre-custom snapshot came from the
+    // uploaded file specifically. When base game wasn't loaded at all,
+    // everything qualifies — correctly, by definition.
     universe.forEach(el => {
         if (!preCustomUniverse.has(el)) moddedElements.add(el);
     });
 
     let summary = `Loaded ${recipeList.length} recipe${recipeList.length === 1 ? "" : "s"}, ${universe.size} total elements, arities from 2 to ${maxArityFound}.`;
     if (skippedLines.length > 0) {
-        summary += ` ${skippedLines.length} line${skippedLines.length === 1 ? "" : "s"} ${skippedLines.length === 1 ? "was" : "were"} skipped.`;
+        summary += ` ${skippedLines.length} line${skippedLines.length === 1 ? "" : "s"} ${skippedLines.length === 1 ? "was" : "were"} skipped (exceeded the max combo size, or had fewer than 2 ingredients).`;
     }
     loadSummaryText = summary;
 
     launchCustomGame();
 }
 
-// ---------- Generalized game engine (N-ary, not just 2) ----------
-
-let discovered = new Set();
-let first = null; // classic 2-tap selection, used when configuredMaxArity === 2
-let combineTray = []; // multi-select tray, used when configuredMaxArity > 2
-let hintModeEnabled = false;
-let musicEnabled = false;
-let loadSummaryText = "";
-const recipesByElement = new Map(); // element -> every recipe it participates in, at any position
-
-function comboKey(ingredients) {
-    return [...ingredients].map(String).sort().join("|");
-}
-
-function buildRecipesByElement() {
-    recipesByElement.clear();
-    recipeList.forEach(r => {
-        new Set(r.ingredients).forEach(ing => {
-            if (!recipesByElement.has(ing)) recipesByElement.set(ing, []);
-            recipesByElement.get(ing).push(r);
-        });
-    });
-}
-
-// An element is "hintable" if it's part of SOME recipe where every OTHER
-// required ingredient is also currently discovered and the result isn't
-// yet found — the N-ary generalization of the main game's 2-ingredient
-// version of the same check.
-function hasActionableCombo(el) {
-    const involved = recipesByElement.get(el) || [];
-    return involved.some(r => !discovered.has(r.result) && r.ingredients.every(ing => discovered.has(ing)));
-}
-
-// Fixpoint reachability from the starting elements — an element is
-// reachable if it's a starting element, or some recipe produces it whose
-// ingredients are ALL already reachable. Generalizes cleanly to any arity
-// since it's just an .every() over the ingredients array either way.
-function computeReachable() {
-    const reachable = new Set(startingElements);
-    let changed = true;
-    while (changed) {
-        changed = false;
-        recipeList.forEach(r => {
-            if (reachable.has(r.result)) return;
-            if (r.ingredients.every(ing => reachable.has(ing))) {
-                reachable.add(r.result);
-                changed = true;
-            }
-        });
-    }
-    return reachable;
-}
-
-function attemptCombine(ingredients) {
-    const key = comboKey(ingredients);
-    const result = recipes[key] || null;
-    const resultEl = document.getElementById("game-result");
-
-    if (result) {
-        discovered.add(result);
-        if (resultEl) resultEl.textContent = `${ingredients.join(" + ")} = ${result}`;
-    } else if (resultEl) {
-        resultEl.textContent = `${ingredients.join(" + ")} = nothing happens`;
-    }
-
-    renderElements();
-    renderFamilyTree();
-    return result;
-}
-
-function makeElementTile(el) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "element-tile";
-    if (moddedElements.has(el)) btn.classList.add("modded");
-    if (hintModeEnabled && hasActionableCombo(el)) btn.classList.add("hintable");
-    if (configuredMaxArity === 2 && el === first) btn.classList.add("selected");
-    btn.textContent = el;
-
-    btn.addEventListener("click", () => {
-        if (configuredMaxArity === 2) {
-            if (first === null) {
-                first = el;
-                renderElements();
-                return;
-            }
-            const chosenFirst = first;
-            first = null;
-            attemptCombine([chosenFirst, el]);
-        } else {
-            if (combineTray.length >= configuredMaxArity) return;
-            combineTray.push(el);
-            renderTray();
-        }
-    });
-
-    return btn;
-}
-
-function renderTray() {
-    const tray = document.getElementById("combine-tray");
-    const btn = document.getElementById("combine-btn");
-    if (!tray || !btn) return;
-
-    tray.innerHTML = "";
-    combineTray.forEach((el, index) => {
-        const chip = document.createElement("span");
-        chip.className = "starting-chip"; // reusing the same chip look established for starting elements
-
-        const label = document.createElement("span");
-        label.textContent = el;
-        chip.appendChild(label);
-
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "starting-chip-remove";
-        removeBtn.textContent = "✕";
-        removeBtn.addEventListener("click", () => {
-            combineTray.splice(index, 1);
-            renderTray();
-        });
-        chip.appendChild(removeBtn);
-
-        tray.appendChild(chip);
-    });
-
-    btn.disabled = combineTray.length < 2;
-}
-
-function updateProgress() {
-    const seal = document.getElementById("game-progress-seal");
-    if (seal) {
-        const fraction = seal.querySelector(".progress-fraction");
-        if (fraction) fraction.textContent = `${discovered.size} / ${universe.size}`;
-        seal.classList.toggle("complete", discovered.size >= universe.size && universe.size > 0);
-    }
-
-    const treeFraction = document.querySelector("#game-tree-header .progress-fraction");
-    if (treeFraction) treeFraction.textContent = `${discovered.size} / ${universe.size}`;
-
-    const banner = document.getElementById("game-complete-banner");
-    if (banner) {
-        const complete = discovered.size >= universe.size && universe.size > 0;
-        banner.hidden = !complete;
-        if (complete) {
-            // Deliberately no "suggest an element" link here, unlike the
-            // main game — this is a personal custom ruleset, not the
-            // shared game, so there's nowhere meaningful to send a
-            // suggestion to.
-            banner.textContent = "All elements discovered for this ruleset.";
-        }
-    }
-}
-
-function renderElements() {
-    const container = document.getElementById("game-elements");
-    if (!container) return;
-
-    const query = (document.getElementById("game-search")?.value || "").toLowerCase().trim();
-    let list = [...discovered].filter(el => el.toLowerCase().includes(query));
-    list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-    if (hintModeEnabled) {
-        const hintable = list.filter(hasActionableCombo);
-        const rest = list.filter(el => !hasActionableCombo(el));
-        list = [...hintable, ...rest];
-    }
-
-    container.innerHTML = "";
-    list.forEach(el => container.appendChild(makeElementTile(el)));
-
-    updateProgress();
-}
-
-function renderFamilyTree() {
-    const container = document.getElementById("tree-list");
-    if (!container) return;
-
-    const query = (document.getElementById("tree-search")?.value || "").toLowerCase().trim();
-    container.innerHTML = "";
-
-    [...discovered]
-        .filter(el => el.toLowerCase().includes(query))
-        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
-        .forEach(el => {
-            const card = document.createElement("div");
-            card.className = "tree-card";
-
-            const h3 = document.createElement("h3");
-            h3.textContent = el;
-            if (moddedElements.has(el)) h3.style.color = "#b9a3ef";
-            card.appendChild(h3);
-
-            const madeFrom = recipeList.filter(r => r.result === el);
-            if (madeFrom.length > 0) {
-                madeFrom.forEach(r => {
-                    const p = document.createElement("p");
-                    p.className = "tree-origin";
-                    p.textContent = `Made from: ${r.ingredients.join(" + ")}`;
-                    card.appendChild(p);
-                });
-            } else if (startingElements.includes(el)) {
-                const p = document.createElement("p");
-                p.className = "tree-origin";
-                p.textContent = "Starting element";
-                card.appendChild(p);
-            }
-
-            container.appendChild(card);
-        });
-}
-
-function renderImpossibleNotice() {
-    const container = document.getElementById("impossible-notice");
-    if (!container) return;
-
-    const reachable = computeReachable();
-    const impossible = [...universe].filter(el => !reachable.has(el)).sort();
-
-    container.innerHTML = "";
-
-    const h2 = document.createElement("h2");
-    h2.textContent = "Impossible elements";
-    container.appendChild(h2);
-
-    const summaryP = document.createElement("p");
-    summaryP.textContent = loadSummaryText;
-    container.appendChild(summaryP);
-
-    const p = document.createElement("p");
-    if (impossible.length === 0) {
-        p.textContent = "None — every element in this ruleset can be reached from the starting elements.";
-        container.appendChild(p);
-        return;
-    }
-
-    p.textContent = `${impossible.length} element${impossible.length === 1 ? "" : "s"} can never actually be made with this ruleset:`;
-    container.appendChild(p);
-
-    const ul = document.createElement("ul");
-    impossible.forEach(el => {
-        const li = document.createElement("li");
-        li.textContent = el;
-        ul.appendChild(li);
-    });
-    container.appendChild(ul);
-}
-
-function setupGameTabs() {
-    const buttons = document.querySelectorAll("#game-view button.tab-button");
-    const panels = document.querySelectorAll("#game-view .tab-panel");
-    buttons.forEach(btn => {
-        btn.addEventListener("click", () => {
-            buttons.forEach(b => b.classList.remove("active"));
-            panels.forEach(p => p.classList.remove("active"));
-            btn.classList.add("active");
-            document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
-            if (btn.dataset.tab === "game-tree") renderFamilyTree();
-        });
-    });
-}
-
-function setupCombineUI() {
-    const btn = document.getElementById("combine-btn");
-    const tray = document.getElementById("combine-tray");
-    if (configuredMaxArity > 2) {
-        if (btn) btn.hidden = false;
-        if (tray) tray.hidden = false;
-    }
-    btn?.addEventListener("click", () => {
-        if (combineTray.length < 2) return;
-        attemptCombine([...combineTray]);
-        combineTray = [];
-        renderTray();
-    });
-}
-
-function setupGameSearch() {
-    document.getElementById("game-search")?.addEventListener("input", renderElements);
-    document.getElementById("tree-search")?.addEventListener("input", renderFamilyTree);
-}
-
-function setupGameAboutToggles() {
-    const hintBtn = document.getElementById("game-hint-toggle");
-    const musicBtn = document.getElementById("game-music-toggle");
-
-    if (hintBtn) {
-        hintBtn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
-        hintBtn.classList.toggle("on", hintModeEnabled);
-        hintBtn.addEventListener("click", () => {
-            hintModeEnabled = !hintModeEnabled;
-            hintBtn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
-            hintBtn.classList.toggle("on", hintModeEnabled);
-            renderElements();
-        });
-    }
-
-    if (musicBtn) {
-        // Simplified stub for this build, as flagged before starting —
-        // no audio engine wired up yet, just the toggle state itself.
-        musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
-        musicBtn.classList.toggle("on", musicEnabled);
-        musicBtn.addEventListener("click", () => {
-            musicEnabled = !musicEnabled;
-            musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
-            musicBtn.classList.toggle("on", musicEnabled);
-        });
-    }
-}
-
 function launchCustomGame() {
     // The uploaded file might never actually mention one of the starting
-    // elements (e.g. never uses "fire" as an ingredient or result at all)
-    // — without this, universe.size could be smaller than discovered.size
-    // from the very start, producing a nonsensical "4 / 3 discovered."
+    // elements — without this, universe.size could undercount and produce
+    // a nonsensical "4 / 3 discovered."
     startingElements.forEach(el => universe.add(el));
 
     discovered = new Set(startingElements);
+    discoveryOrder = [...startingElements];
     first = null;
     combineTray = [];
+    treeDirty = true;
     buildRecipesByElement();
 
     const wizard = document.getElementById("wizard-view");
@@ -552,25 +1133,29 @@ function launchCustomGame() {
     if (wizard) wizard.hidden = true;
     if (game) game.hidden = false;
 
-    setupGameTabs();
     setupCombineUI();
-    setupGameSearch();
-    setupGameAboutToggles();
 
-    renderElements();
-    renderFamilyTree();
+    updateProgressDisplays();
+    render();
     renderImpossibleNotice();
+
+    // "Load custom" IS a user gesture, so music can start right here —
+    // plus the same first-interaction fallback the main game uses.
+    if (musicEnabled && soundEnabled) startMusic();
+    armFirstInteractionMusicStart();
+
+    if (hintModeEnabled) resetHintIdleTimer();
+
+    // Sync the About toggle label with the wizard's choice.
+    const hintBtn = document.getElementById("hint-mode-toggle");
+    if (hintBtn) {
+        hintBtn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+        hintBtn.classList.toggle("muted", !hintModeEnabled);
+    }
 }
-
-
 
 // ---------- Init ----------
 
-// A plain window.addEventListener("DOMContentLoaded", ...) silently does
-// nothing if that event already fired before this script got to this
-// line — which can happen depending on load/caching timing. readyState
-// covers both cases correctly instead of assuming the event is still
-// pending.
 function onReady(fn) {
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", fn);
@@ -580,9 +1165,26 @@ function onReady(fn) {
 }
 
 onReady(() => {
+    loadSoundPreference();
+    loadMusicPreference();
+    loadSortModePreference();
+    loadDeadEndCollapsePreference();
+
     setupStartingElementsEditor();
     setupFileUploadControl();
     document.getElementById("load-custom-btn")?.addEventListener("click", handleLoadCustom);
+
+    // Game-view controls exist in the DOM (hidden) from the start, so all
+    // of this wires up once here, exactly like the main game's init.
+    setupGameTabs();
+    setupSoundToggle();
+    setupMusicToggle();
+    setupMusicVolumeSlider();
+    setupHintModeToggle();
+    setupSortToggle();
+    setupDeadEndToggle();
+    setupTreeSearch();
+    document.getElementById("search")?.addEventListener("input", render);
 });
 
 })();
