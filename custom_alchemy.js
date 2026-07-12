@@ -154,6 +154,10 @@ async function handleLoadCustom() {
         showLoadStatus("Choose a recipe file first.", true);
         return;
     }
+    if (!file.name.toLowerCase().endsWith(".js")) {
+        showLoadStatus(`"${file.name}" isn't a .js file. Fix the file and upload it again.`, true);
+        return;
+    }
 
     configuredMaxArity = Number(document.getElementById("max-arity-select")?.value) || 2;
     resetRecipeData();
@@ -170,7 +174,7 @@ async function handleLoadCustom() {
         const runRecipes = new Function("recipe", code);
         runRecipes(recipe);
     } catch (e) {
-        showLoadStatus(`That file has a syntax error: ${e.message}`, true);
+        showLoadStatus(`That file's format is wrong: ${e.message}. Fix it and upload it again.`, true);
         return;
     }
 
