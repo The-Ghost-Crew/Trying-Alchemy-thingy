@@ -103,14 +103,43 @@
   }
 
   .starting-chip-remove {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: rgba(181, 69, 63, 0.18);
+    border: 1px solid var(--red);
+    border-radius: 50%;
+    color: #e0a8a4;
+    font-size: 0.7rem;
     line-height: 1;
     cursor: pointer;
-    padding: 2px 4px;
+    padding: 0;
+    flex-shrink: 0;
   }
+
+  .file-upload-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .file-upload-btn {
+    background: var(--panel);
+    border: 1px solid var(--gold-soft);
+    color: var(--gold);
+    padding: 8px 18px;
+    border-radius: 6px;
+  }
+
+  .file-upload-filename {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  .visually-hidden-file-input { display: none; }
 
   .add-row { display: flex; gap: 8px; }
   .add-row input { flex: 1; }
@@ -221,7 +250,11 @@
     <pre>recipe("air", "water", "mist");
 recipe("air", "water", "water", "superMist");</pre>
     <p class="help">The second example uses 3 ingredients to make <code>superMist</code> — it only works if combo size above is set to 3 or higher. Capitalization always matters: <code>"Earth"</code> and <code>"earth"</code> are treated as two completely different elements.</p>
-    <input type="file" id="recipe-file-input" accept=".js">
+    <div class="file-upload-row">
+      <button type="button" id="file-upload-trigger" class="file-upload-btn">Choose file</button>
+      <span id="file-upload-filename" class="file-upload-filename">No file selected</span>
+    </div>
+    <input type="file" id="recipe-file-input" accept=".js" class="visually-hidden-file-input">
   </div>
 
   <button id="load-custom-btn" type="button">Load custom</button>
