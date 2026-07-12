@@ -16,6 +16,7 @@
     --gold: #c9a227;
     --gold-soft: rgba(201, 162, 39, 0.35);
     --red: #b5453f;
+    --red-soft: rgba(181, 69, 63, 0.35);
     --text: #e8e4d8;
     --text-muted: #8d92a8;
     --border: #383c52;
@@ -35,187 +36,43 @@
     padding: 24px 16px 64px;
   }
 
-  header { max-width: 640px; margin: 0 auto 24px; text-align: center; }
+  header { max-width: 880px; margin: 0 auto 24px; text-align: center; }
 
   header h1 {
     font-family: 'Cormorant Garamond', serif;
     font-weight: 700;
-    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    font-size: clamp(2rem, 5vw, 2.75rem);
+    letter-spacing: 0.02em;
     margin: 0 0 4px;
     color: var(--parchment);
   }
 
-  header p { color: var(--text-muted); margin: 0; font-size: 0.92rem; }
+  header p { color: var(--text-muted); margin: 0; font-size: 0.95rem; }
   header a { color: var(--gold); }
 
-  main { max-width: 640px; margin: 0 auto; }
-
-  .panel-card {
-    background: var(--panel-raised);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 16px;
-  }
-
-  .panel-card h2 {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.25rem;
-    color: var(--parchment);
-    margin: 0 0 6px;
-  }
-
-  .panel-card p.help {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    line-height: 1.5;
-    margin: 0 0 12px;
-  }
-
-  select, input[type="text"], input[type="file"] {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 12px;
-    border-radius: 6px;
-  }
-
-  select { width: 100%; }
-
-  .radio-row { display: flex; gap: 20px; margin-bottom: 4px; }
-  .radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer; }
-
-  #starting-elements-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-
-  .starting-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--panel);
-    border: 1px solid var(--gold-soft);
-    color: var(--gold);
-    border-radius: 16px;
-    padding: 5px 6px 5px 12px;
+  .version-tag {
+    display: inline-block;
+    margin-top: 8px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.82rem;
-  }
-
-  .starting-chip-remove {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    background: rgba(181, 69, 63, 0.18);
-    border: 1px solid var(--red);
-    border-radius: 50%;
-    color: #e0a8a4;
     font-size: 0.7rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    flex-shrink: 0;
-  }
-
-  .file-upload-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .file-upload-btn {
-    background: var(--panel);
+    letter-spacing: 0.08em;
+    color: var(--gold);
     border: 1px solid var(--gold-soft);
-    color: var(--gold);
-    padding: 8px 18px;
-    border-radius: 6px;
+    border-radius: 20px;
+    padding: 2px 10px;
   }
 
-  .file-upload-filename {
-    color: var(--text-muted);
-    font-size: 0.85rem;
-  }
+  main { max-width: 880px; margin: 0 auto; }
 
-  .visually-hidden-file-input { display: none; }
-
-  .add-row { display: flex; gap: 8px; }
-  .add-row input { flex: 1; }
-
-  code {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85em;
-  }
-
-  pre {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    overflow-x: auto;
-    margin: 8px 0 0;
-  }
-
-  #add-starting-element-btn, #load-custom-btn, .file-upload-btn {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    cursor: pointer;
-    border-radius: 6px;
-  }
-
-  .add-row button {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    padding: 0 16px;
-  }
-
-  #load-custom-btn {
-    width: 100%;
-    background: var(--gold);
-    color: var(--ink-bg);
-    border: none;
-    padding: 12px;
-    font-size: 0.85rem;
-  }
-
-  #load-status {
-    text-align: center;
-    font-size: 0.85rem;
-    color: var(--gold);
-    margin-top: 12px;
-    line-height: 1.5;
-  }
-
-  #load-status.load-status-error { color: #e0a8a4; }
-
-  /* ---------- Game view (post-"Load Custom") ---------- */
-
-  /* THE critical fix: this rule never existed before, so every panel
-     (Elements, Family Tree, About) rendered stacked on top of each other
-     regardless of which tab was "active" — nothing was ever actually
-     hidden. Copied directly from alchemy_index.html, where it already
-     works correctly. */
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  #game-view .tabs {
+  .tabs {
     display: flex;
     gap: 3px;
     padding: 0 6px;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .tabs::-webkit-scrollbar { display: none; }
 
   .tab-button {
     font-family: 'IBM Plex Mono', monospace;
@@ -232,6 +89,32 @@
     flex-shrink: 0;
     white-space: nowrap;
     position: relative;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+
+  /* Same look as .tab-button, but for an <a> that navigates to a
+     separate page (Mods) instead of toggling a same-page panel — an
+     anchor needs these two extra rules an actual <button> gets for free. */
+  a.tab-button {
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .tab-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: #f2c94c;
+    color: #14151f;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--ink-bg);
   }
 
   .tab-button:hover { color: var(--text); }
@@ -243,10 +126,23 @@
     top: 1px;
   }
 
-  /* Everything below this point is copied directly from alchemy_index.html
-     rather than reconstructed, per the note that a look-alike-but-different
-     version isn't good enough here — same seal, same section-label, same
-     about-block/about-group-label split, same tree-card. */
+  .tab-button:focus-visible,
+  .element-tile:focus-visible,
+  #search:focus-visible,
+  button:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  .panel-card {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 0 8px 8px 8px;
+    padding: 24px;
+  }
+
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
   .seal {
     width: auto;
@@ -265,9 +161,74 @@
     color: var(--gold);
   }
 
-  .seal .progress-fraction { font-size: 0.95rem; font-weight: 500; white-space: nowrap; }
-  .seal .seal-label { font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
-  .seal.complete { border-color: #e9c85f; box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.55); }
+  .seal .progress-fraction {
+    font-size: 0.95rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .seal .seal-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .seal.complete {
+    border-color: #e9c85f;
+    box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.55);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .seal.complete { animation: seal-glow 2.4s ease-in-out infinite; }
+    .element-tile.just-found { animation: found-flash 1.6s ease-in-out 1; }
+  }
+
+  @keyframes seal-glow {
+    0%, 100% { box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.4); }
+    50% { box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 8px rgba(233, 200, 95, 0.65); }
+  }
+
+  @keyframes found-flash {
+    0% { box-shadow: 0 0 0 0 rgba(201, 162, 39, 0.6); }
+    100% { box-shadow: 0 0 0 8px rgba(201, 162, 39, 0); }
+  }
+
+  .dead-end-count {
+    display: block;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--red);
+    margin-bottom: 16px;
+  }
+
+  #complete-banner {
+    text-align: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+    margin: -4px 0 20px;
+  }
+
+  #complete-banner a { color: var(--gold); text-decoration: underline; }
+
+  #search, #tree-search {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+    margin-bottom: 16px;
+  }
+
+  #search::placeholder, #tree-search::placeholder { color: var(--text-muted); }
+
+  #elements, #dead-end-elements { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
 
   .section-label {
     font-family: 'IBM Plex Mono', monospace;
@@ -276,6 +237,93 @@
     letter-spacing: 0.06em;
     color: var(--text-muted);
     margin: 0 0 10px;
+  }
+
+  .about-group-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    border-bottom: 1px solid var(--gold-soft);
+    padding-bottom: 8px;
+    margin: 0 0 16px;
+  }
+
+  .about-group-label:not(:first-child) { margin-top: 32px; }
+
+  #dead-end-section {
+    border-top: 1px dashed var(--border);
+    padding-top: 16px;
+    margin-top: 4px;
+  }
+
+  #dead-end-section .section-label { color: var(--red); }
+
+  .element-tile {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+
+  .element-tile:hover { border-color: var(--gold-soft); }
+
+  .element-tile .element-icon {
+    width: 18px;
+    height: 18px;
+    vertical-align: -4px;
+    margin-right: 6px;
+  }
+
+  .element-tile.selected {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 162, 39, 0.1);
+  }
+
+  .element-tile.dead-end { border-color: var(--red-soft); color: #e0a8a4; }
+
+  .element-tile.dead-end.selected {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(181, 69, 63, 0.12);
+  }
+
+  /* Same blue already used for "water" and connectivity in the Family
+     Tree graph — reused here rather than introducing a new color, so
+     "blue means combinable" stays consistent across the whole app. */
+  .element-tile.hintable {
+    border-color: #5b8fb0;
+    box-shadow: 0 0 0 1px rgba(91, 143, 176, 0.35);
+  }
+
+  .element-tile.hintable.selected {
+    border-color: #5b8fb0;
+    color: #5b8fb0;
+    background: rgba(91, 143, 176, 0.12);
+  }
+
+  /* Same green already used for "earth" elsewhere. Deliberately placed
+     after .hintable in source order — a green-paired element also
+     qualifies as generally hintable, so this needs to win visually over
+     the blue outline rather than the two competing unpredictably. */
+  .element-tile.hint-pair {
+    border-color: #5c8c5a;
+    color: #5c8c5a;
+    box-shadow: 0 0 0 1px rgba(92, 140, 90, 0.45);
+    background: rgba(92, 140, 90, 0.14);
+  }
+
+  .element-tile.hint-pair.selected {
+    border-color: #5c8c5a;
+    color: #5c8c5a;
+    background: rgba(92, 140, 90, 0.2);
   }
 
   .sound-toggle {
@@ -291,27 +339,98 @@
     cursor: pointer;
   }
 
-  .sound-toggle.on { color: var(--gold); border-color: var(--gold-soft); }
+  .sound-toggle.muted { color: var(--text-muted); opacity: 0.7; }
+  .sound-toggle:disabled { opacity: 0.5; cursor: default; }
 
-  #game-tree-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
-  #game-tree-header .progress-fraction { font-family: 'IBM Plex Mono', monospace; color: var(--gold); }
-
-  .about-group-label {
+  .volume-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .volume-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--gold);
+  }
+
+  #music-volume-label {
+    min-width: 36px;
+    text-align: right;
     color: var(--gold);
-    border-bottom: 1px solid var(--gold-soft);
-    padding-bottom: 8px;
+  }
+
+  #result {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--parchment);
+    min-height: 1.4em;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
     margin: 0 0 16px;
   }
 
-  .about-group-label:not(:first-child) { margin-top: 32px; }
+  @media (prefers-reduced-motion: no-preference) {
+    #result.flash { animation: result-flash 0.6s ease-out 1; }
+  }
 
-  .about-block { margin-bottom: 20px; }
-  .about-block h2 { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--parchment); margin: 0 0 8px; }
-  .about-block p { color: var(--text-muted); line-height: 1.55; font-size: 0.92rem; margin: 0 0 8px; }
+  @keyframes result-flash {
+    0% { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold-soft); }
+    100% { border-color: var(--border); box-shadow: none; }
+  }
+
+  .section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--red);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0 0 10px;
+    cursor: pointer;
+  }
+
+  .section-toggle .chevron {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  .section-toggle.collapsed .chevron { transform: rotate(-90deg); }
+
+  #tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+
+  #tree-header .progress-fraction { font-family: 'IBM Plex Mono', monospace; color: var(--gold); }
+
+  .view-toggle, .sort-toggle, .about-block button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+
+  .view-toggle.active, .sort-toggle.active { color: var(--gold); border-color: var(--gold-soft); }
+
+  .sort-controls { display: flex; gap: 8px; margin-bottom: 12px; }
 
   .tree-card {
     background: var(--panel);
@@ -322,85 +441,178 @@
     margin-bottom: 10px;
   }
 
-  .tree-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; margin: 0 0 4px; color: var(--parchment); }
-  .tree-origin { margin: 0 0 6px; color: var(--text-muted); font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; }
-  .tree-hint { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--gold); }
-  .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
+  .tree-card.dead-end-card { border-left-color: var(--red-soft); }
 
-  /* These base rules were missing entirely before — .modded and
-     .modded.hintable existed, but nothing defined what a normal element
-     tile looks like at all, so every tile fell back to the browser's
-     unstyled native button chrome. Copied directly from alchemy_index.html. */
-  .element-tile {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: border-color 0.15s ease;
+  .tree-card h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    margin: 0 0 4px;
+    color: var(--parchment);
   }
 
-  .element-tile:hover { border-color: var(--gold-soft); }
+  .tree-card h3 .element-icon {
+    width: 26px;
+    height: 26px;
+    vertical-align: -6px;
+    margin-right: 8px;
+  }
 
-  .element-tile.selected {
+  .tree-origin {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .tree-used-label {
+    margin: 8px 0 4px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .tree-card ul { margin: 0; padding-left: 18px; font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+
+  .tree-hint { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--gold); }
+  .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
+  .tree-dead-note { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--red); }
+
+  .orphan-list {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .orphan-list li { margin-bottom: 4px; }
+  .orphan-list strong { color: #e0a8a4; }
+
+  .about-block { margin-bottom: 20px; }
+
+  .about-block h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.3rem;
+    color: var(--parchment);
+    margin: 0 0 8px;
+  }
+
+  .about-block p { color: var(--text-muted); line-height: 1.55; font-size: 0.92rem; margin: 0 0 8px; }
+
+  .about-block a { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+  .about-block a:hover { color: #e9c85f; }
+
+  .section-intro {
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.55;
+    margin: 0 0 20px;
+  }
+
+  .set-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .set-tile {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 20px;
+    padding: 6px 14px;
+    text-transform: capitalize;
+  }
+
+  .set-tile-done {
     border-color: var(--gold);
     color: var(--gold);
     background: rgba(201, 162, 39, 0.1);
   }
 
-  .element-tile.hintable {
-    border-color: #5b8fb0;
-    box-shadow: 0 0 0 1px rgba(91, 143, 176, 0.35);
+  .about-block code {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--parchment);
   }
 
-  /* These two are genuinely new concepts with no main-game equivalent —
-     N-ary combining and "this came from your file" both only exist here. */
+  /* ---------- Mods-only additions (no main-game equivalent) ---------- */
   .element-tile.modded {
     border-color: #8a6fd1;
     color: #b9a3ef;
     background: rgba(138, 111, 209, 0.12);
   }
-
   .element-tile.modded.hintable {
-    box-shadow: 0 0 0 1px rgba(138, 111, 209, 0.4), 0 0 0 3px rgba(201, 162, 39, 0.25);
+    box-shadow: 0 0 0 1px rgba(138, 111, 209, 0.4), 0 0 0 3px rgba(91, 143, 176, 0.3);
   }
+  .tree-card h3.modded-name { color: #b9a3ef; }
 
   .combine-tray {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    padding: 10px;
-    background: var(--panel);
-    border: 1px dashed var(--gold-soft);
-    border-radius: 6px;
-    margin-bottom: 10px;
-    min-height: 20px;
+    display: flex; flex-wrap: wrap; gap: 6px;
+    padding: 10px; background: var(--panel);
+    border: 1px dashed var(--gold-soft); border-radius: 6px;
+    margin: 0 0 10px; min-height: 20px;
   }
-
   #combine-btn {
-    width: 100%;
-    background: var(--gold);
-    color: var(--ink-bg);
-    border: none;
-    padding: 10px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-family: 'IBM Plex Mono', monospace;
-    text-transform: uppercase;
-    font-size: 0.8rem;
+    display: block; width: 100%;
+    background: var(--gold); color: var(--ink-bg); border: none;
+    padding: 10px; border-radius: 6px; margin-bottom: 12px;
+    font-family: 'IBM Plex Mono', monospace; text-transform: uppercase; font-size: 0.8rem;
+    letter-spacing: 0.03em; cursor: pointer;
   }
-
   #combine-btn:disabled { background: var(--panel); color: var(--text-muted); }
 
-  #game-result {
-    text-align: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.9rem;
-    color: var(--gold);
-    min-height: 1.3em;
+  /* Wizard */
+  .wizard-card { border-radius: 8px; margin-bottom: 16px; }
+  .wizard-card select, .wizard-card input[type="text"] {
+    font-family: 'Inter', sans-serif; font-size: 0.9rem;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 12px; border-radius: 6px;
+  }
+  .wizard-card select { width: 100%; }
+  .radio-row { display: flex; gap: 20px; }
+  .radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--text); cursor: pointer; }
+  #starting-elements-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .starting-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--panel); border: 1px solid var(--gold-soft); color: var(--gold);
+    border-radius: 16px; padding: 5px 6px 5px 12px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem;
+  }
+  .starting-chip-remove {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px;
+    background: rgba(181, 69, 63, 0.18); border: 1px solid var(--red);
+    border-radius: 50%; color: #e0a8a4; font-size: 0.7rem; line-height: 1;
+    cursor: pointer; padding: 0; flex-shrink: 0;
+  }
+  .add-row { display: flex; gap: 8px; }
+  .add-row input { flex: 1; }
+  .add-row button, #load-custom-btn, .file-upload-btn {
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    cursor: pointer; border-radius: 6px;
+  }
+  .add-row button { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 0 16px; }
+  #load-custom-btn { width: 100%; background: var(--gold); color: var(--ink-bg); border: none; padding: 12px; font-size: 0.85rem; }
+  #load-status { text-align: center; font-size: 0.85rem; color: var(--gold); margin-top: 12px; line-height: 1.5; }
+  #load-status.load-status-error { color: #e0a8a4; }
+  .file-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .file-upload-btn { background: var(--panel); border: 1px solid var(--gold-soft); color: var(--gold); padding: 8px 18px; }
+  .file-upload-filename { color: var(--text-muted); font-size: 0.85rem; }
+  .visually-hidden-file-input { display: none; }
+  #wizard-view pre {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem;
+    color: var(--text-muted); overflow-x: auto; margin: 8px 0;
   }
 </style>
 </head>
@@ -413,9 +625,9 @@
 
 <main id="wizard-view">
 
-  <div class="panel-card">
+  <div class="about-block panel-card wizard-card">
     <h2>Combo size</h2>
-    <p class="help">Classic mode is two elements making one: <code>X + Y = Z</code>. Choosing a higher number allows recipes with more ingredients (up to 9), and adds a "Mix" option in the game for combining more than two at once — the classic two-tap method always still works too.</p>
+    <p>Classic mode is two elements making one: <code>X + Y = Z</code>. Choosing a higher number allows recipes with more ingredients (up to 9), and adds a "Combine" tray in the game for mixing more than two at once.</p>
     <select id="max-arity-select">
       <option value="2" selected>2 (classic — X + Y = Z)</option>
       <option value="3">Up to 3 (W + X + Y = Z)</option>
@@ -428,18 +640,27 @@
     </select>
   </div>
 
-  <div class="panel-card">
+  <div class="about-block panel-card wizard-card">
     <h2>Hint Mode</h2>
-    <p class="help">Outlines elements that can currently combine with something in your inventory.</p>
+    <p>Outlines elements that can currently combine with something in your inventory.</p>
     <div class="radio-row">
       <label><input type="radio" name="hint-mode" value="no" checked> Off</label>
       <label><input type="radio" name="hint-mode" value="yes"> On</label>
     </div>
   </div>
 
-  <div class="panel-card">
+  <div class="about-block panel-card wizard-card">
+    <h2>Include base game elements</h2>
+    <p>If yes, this loads the real <code>recipes.js</code> from the main game alongside your file, so you get everything from the actual game plus your additions. If your file redefines a combination that already exists, your version wins.</p>
+    <div class="radio-row">
+      <label><input type="radio" name="include-base" value="no" checked> No — custom file only</label>
+      <label><input type="radio" name="include-base" value="yes"> Yes — merge with base game</label>
+    </div>
+  </div>
+
+  <div class="about-block panel-card wizard-card">
     <h2>Starting elements</h2>
-    <p class="help">Defaults to air, water, fire, and earth. Remove any of these or add your own.</p>
+    <p>Defaults to air, water, fire, and earth. Remove any of these or add your own.</p>
     <div id="starting-elements-list"></div>
     <div class="add-row">
       <input type="text" id="new-starting-element-input" placeholder="Add a starting element…">
@@ -447,21 +668,12 @@
     </div>
   </div>
 
-  <div class="panel-card">
-    <h2>Include base game elements</h2>
-    <p class="help">If yes, this loads the real <code>recipes.js</code> from the main game alongside your file, so you get everything from the actual game plus your additions. If your file redefines a combination that already exists in the base game, your version wins.</p>
-    <div class="radio-row">
-      <label><input type="radio" name="include-base" value="no" checked> No — custom file only</label>
-      <label><input type="radio" name="include-base" value="yes"> Yes — merge with base game</label>
-    </div>
-  </div>
-
-  <div class="panel-card">
+  <div class="about-block panel-card wizard-card">
     <h2>Recipe file</h2>
-    <p class="help">Upload a <code>.js</code> file. Each line is a recipe, ending in a semicolon. The <strong>last</strong> argument is always the result — everything before it is an ingredient:</p>
+    <p>Upload a <code>.js</code> file. Each line is a recipe, ending in a semicolon. The <strong>last</strong> argument is always the result — everything before it is an ingredient:</p>
     <pre>recipe("air", "water", "mist");
 recipe("air", "water", "water", "superMist");</pre>
-    <p class="help">The second example uses 3 ingredients to make <code>superMist</code> — it only works if combo size above is set to 3 or higher. Capitalization always matters: <code>"Earth"</code> and <code>"earth"</code> are treated as two completely different elements.</p>
+    <p>The second example uses 3 ingredients to make <code>superMist</code> — it only works if combo size above is set to 3 or higher. Capitalization always matters: <code>"Earth"</code> and <code>"earth"</code> are treated as two completely different elements.</p>
     <div class="file-upload-row">
       <button type="button" id="file-upload-trigger" class="file-upload-btn">Choose file</button>
       <span id="file-upload-filename" class="file-upload-filename">No file selected</span>
@@ -475,61 +687,92 @@ recipe("air", "water", "water", "superMist");</pre>
 </main>
 
 <div id="game-view" hidden>
-  <div class="tabs">
-    <button class="tab-button active" data-tab="game-elements">Elements</button>
-    <button class="tab-button" data-tab="game-tree">Family Tree</button>
-    <button class="tab-button" data-tab="game-about">About</button>
+<div class="tabs">
+    <button class="tab-button active" data-tab="lab">Elements</button>
+    <button class="tab-button" data-tab="tree">Family Tree</button>
+    <button class="tab-button" data-tab="about">About</button>
   </div>
+
   <div class="panel-card">
 
-    <section id="tab-game-elements" class="tab-panel active">
-      <div class="seal" id="game-progress-seal">
+    <section id="tab-lab" class="tab-panel active">
+      <div class="seal" id="progress-seal">
         <span class="progress-fraction">0 / 0</span>
         <span class="seal-label">Found</span>
       </div>
-
-      <p id="game-complete-banner" hidden></p>
-      <p id="game-result" aria-live="polite"></p>
+      <button id="sound-toggle" class="sound-toggle" type="button">Sound</button>
+      <span class="dead-end-count">0 dead ends found</span>
+      <p id="complete-banner" hidden>All elements discovered for this ruleset. Load a different file for more.</p>
+      <p id="result" aria-live="polite"></p>
 
       <div id="combine-tray" class="combine-tray" hidden></div>
       <button id="combine-btn" type="button" hidden disabled>Combine</button>
 
-      <input id="game-search" type="text" placeholder="Search your discovered elements…">
+      <div class="sort-controls">
+        <button class="sort-toggle active" data-sort="alpha" type="button">A–Z</button>
+        <button class="sort-toggle" data-sort="recent" type="button">Recent</button>
+      </div>
+
+      <input id="search" type="text" placeholder="Search your discovered elements…">
 
       <p class="section-label">Elements</p>
-      <div id="game-elements"></div>
+      <div id="elements"></div>
+
+      <div id="dead-end-section" hidden>
+        <button id="dead-end-toggle" class="section-toggle dead-end-toggle-btn" type="button">
+          <span class="chevron">▾</span> Dead ends
+        </button>
+        <div id="dead-end-elements" class="dead-end-toggle-target"></div>
+      </div>
     </section>
 
-    <section id="tab-game-tree" class="tab-panel">
-      <div id="game-tree-header">
+    <section id="tab-tree" class="tab-panel">
+      <div id="tree-header">
         <span>Elements you've uncovered so far</span>
         <span class="progress-fraction">0 / 0</span>
       </div>
+      <span class="dead-end-count">0 dead ends found</span>
 
       <input id="tree-search" type="text" placeholder="Search elements…">
-      <div id="tree-list"></div>
+
+      <div id="tree-list-wrap">
+        <div id="tree"></div>
+
+        <div id="tree-dead-section" hidden>
+          <button id="tree-dead-toggle" class="section-toggle dead-end-toggle-btn" type="button">
+            <span class="chevron">▾</span> Dead ends
+          </button>
+          <div id="tree-dead-list" class="dead-end-toggle-target"></div>
+        </div>
+      </div>
     </section>
 
-    <section id="tab-game-about" class="tab-panel">
+    <section id="tab-about" class="tab-panel">
       <div class="about-group-label">Settings</div>
 
       <div class="about-block">
         <h2>Music</h2>
-        <button id="game-music-toggle" type="button" class="sound-toggle">Music: Off</button>
+        <p>A quiet ambient loop plays in the background. It shares the same mute switch as sound effects — if those are off (from the Elements tab), music stays silent too, even with this toggled on.</p>
+        <button id="music-toggle" class="sound-toggle" type="button">Music: On</button>
+        <div class="volume-row">
+          <label for="music-volume">Volume</label>
+          <input type="range" id="music-volume" min="0" max="100" step="5" value="100">
+          <span id="music-volume-label">100%</span>
+        </div>
       </div>
 
       <div class="about-block">
         <h2>Hint Mode</h2>
-        <button id="game-hint-toggle" type="button" class="sound-toggle">Hint Mode: Off</button>
+        <p>Outlines any element that can combine with something already in your inventory right now, and moves those to the top of the Elements list. Meant to smooth out the grind, not to spoil what the result actually is.</p>
+        <button id="hint-mode-toggle" class="sound-toggle" type="button">Hint Mode: Off</button>
       </div>
 
       <div class="about-group-label">Information</div>
-      <div id="impossible-notice" class="about-block"></div>
+      <div class="about-block" id="impossible-notice"></div>
     </section>
 
   </div>
-</div>
-
+</div><!-- /game-view -->
 
 <script src="custom_alchemy.js"></script>
 </body>
