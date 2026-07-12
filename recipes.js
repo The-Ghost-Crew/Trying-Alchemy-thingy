@@ -2559,7 +2559,6 @@ recipe("audience", "pornography", "18+");
 recipe("audience", "LEGO", "4-99");
 recipe("app", "18+", "18+ app");
 recipe("quartz", "rose", "rose quartz");
-recipe("silicon dioxide", "mineral", "quartz");
 recipe("silica", "mineral", "quartz");
 recipe("clock", "quartz", "quartz clock");
 recipe("silicon", "dioxygen", "silica");
