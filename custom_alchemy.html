@@ -199,6 +199,122 @@
   }
 
   #load-status.load-status-error { color: #e0a8a4; }
+
+  /* ---------- Game view (post-"Load Custom") ---------- */
+
+  #game-view .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 4px;
+  }
+
+  .game-progress-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+  }
+
+  .game-elements-grid { max-height: none; }
+
+  /* Purple specifically distinguishes "this came from the uploaded file"
+     from base-game content — a deliberately different hue from gold
+     (hintable) and red (destructive) so all three stay unambiguous even
+     when combined on the same tile. */
+  .element-tile.modded {
+    border-color: #8a6fd1;
+    color: #b9a3ef;
+    background: rgba(138, 111, 209, 0.12);
+  }
+
+  .element-tile.hintable {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.3);
+  }
+
+  .element-tile.modded.hintable {
+    box-shadow: 0 0 0 1px rgba(138, 111, 209, 0.4), 0 0 0 3px rgba(201, 162, 39, 0.25);
+  }
+
+  .combine-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+    background: var(--panel);
+    border: 1px dashed var(--gold-soft);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    min-height: 20px;
+  }
+
+  .combine-tray .element-tile { cursor: default; }
+
+  #combine-btn {
+    width: 100%;
+    background: var(--gold);
+    color: var(--ink-bg);
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+
+  #combine-btn:disabled {
+    background: var(--panel);
+    color: var(--text-muted);
+  }
+
+  #game-result {
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--gold);
+    min-height: 1.3em;
+  }
+
+  .game-complete-banner {
+    text-align: center;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    color: var(--gold);
+  }
+
+  .toggle-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 8px 16px;
+    border-radius: 20px;
+  }
+
+  .toggle-btn.on { border-color: var(--gold); color: var(--gold); }
+
+  .tree-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .tree-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+
+  .tree-card h4 {
+    margin: 0 0 6px;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.1rem;
+    color: var(--parchment);
+  }
+
+  .tree-card p {
+    margin: 2px 0;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
 </style>
 </head>
 <body>
@@ -208,7 +324,7 @@
   <p>Bring your own recipe file and play a fully custom version of the game. <a href="alchemy_index.html">&larr; Back to the main game</a></p>
 </header>
 
-<main>
+<main id="wizard-view">
 
   <div class="panel-card">
     <h2>Combo size</h2>
@@ -245,6 +361,15 @@
   </div>
 
   <div class="panel-card">
+    <h2>Include base game elements</h2>
+    <p class="help">If yes, this loads the real <code>recipes.js</code> from the main game alongside your file, so you get everything from the actual game plus your additions. If your file redefines a combination that already exists in the base game, your version wins.</p>
+    <div class="radio-row">
+      <label><input type="radio" name="include-base" value="no" checked> No — custom file only</label>
+      <label><input type="radio" name="include-base" value="yes"> Yes — merge with base game</label>
+    </div>
+  </div>
+
+  <div class="panel-card">
     <h2>Recipe file</h2>
     <p class="help">Upload a <code>.js</code> file. Each line is a recipe, ending in a semicolon. The <strong>last</strong> argument is always the result — everything before it is an ingredient:</p>
     <pre>recipe("air", "water", "mist");
@@ -261,6 +386,48 @@ recipe("air", "water", "water", "superMist");</pre>
   <p id="load-status"></p>
 
 </main>
+
+<div id="game-view" hidden>
+  <div class="tabs">
+    <button class="tab-button active" data-tab="game-elements">Elements</button>
+    <button class="tab-button" data-tab="game-tree">Family Tree</button>
+    <button class="tab-button" data-tab="game-about">About</button>
+  </div>
+  <div class="panel-card">
+
+    <section id="tab-game-elements" class="tab-panel active">
+      <p id="game-progress" class="game-progress-text"></p>
+      <input type="text" id="game-search" class="picker-search" placeholder="Search elements…">
+
+      <div id="combine-tray" class="combine-tray" hidden></div>
+      <button id="combine-btn" type="button" hidden disabled>Combine</button>
+
+      <p id="game-result"></p>
+      <p id="game-complete-banner" class="game-complete-banner" hidden></p>
+
+      <div id="game-elements" class="picker-list game-elements-grid"></div>
+    </section>
+
+    <section id="tab-game-tree" class="tab-panel">
+      <input type="text" id="tree-search" class="picker-search" placeholder="Search elements…">
+      <div id="tree-list" class="tree-list"></div>
+    </section>
+
+    <section id="tab-game-about" class="tab-panel">
+      <div class="panel-card">
+        <h2>Music</h2>
+        <button id="game-music-toggle" type="button" class="toggle-btn">Music: Off</button>
+      </div>
+      <div class="panel-card">
+        <h2>Hint Mode</h2>
+        <button id="game-hint-toggle" type="button" class="toggle-btn">Hint Mode: Off</button>
+      </div>
+      <div id="impossible-notice" class="panel-card"></div>
+    </section>
+
+  </div>
+</div>
+
 
 <script src="custom_alchemy.js"></script>
 </body>
