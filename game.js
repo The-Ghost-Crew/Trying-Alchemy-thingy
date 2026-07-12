@@ -2334,7 +2334,7 @@ function ensureSetsUpToDate() {
 }
 
 function setupTabs() {
-    const tabButtons = document.querySelectorAll(".tab-button");
+    const tabButtons = document.querySelectorAll("button.tab-button");
     const panels = document.querySelectorAll(".tab-panel");
 
     tabButtons.forEach(btn => {
