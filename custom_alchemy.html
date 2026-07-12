@@ -165,7 +165,7 @@
     margin: 8px 0 0;
   }
 
-  button {
+  #add-starting-element-btn, #load-custom-btn, .file-upload-btn {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.8rem;
     text-transform: uppercase;
@@ -215,6 +215,32 @@
     gap: 3px;
     padding: 0 6px;
     overflow-x: auto;
+  }
+
+  .tab-button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 8px 10px;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
+    position: relative;
+  }
+
+  .tab-button:hover { color: var(--text); }
+
+  .tab-button.active {
+    background: var(--panel-raised);
+    color: var(--gold);
+    position: relative;
+    top: 1px;
   }
 
   /* Everything below this point is copied directly from alchemy_index.html
@@ -300,6 +326,35 @@
   .tree-origin { margin: 0 0 6px; color: var(--text-muted); font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; }
   .tree-hint { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--gold); }
   .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
+
+  /* These base rules were missing entirely before — .modded and
+     .modded.hintable existed, but nothing defined what a normal element
+     tile looks like at all, so every tile fell back to the browser's
+     unstyled native button chrome. Copied directly from alchemy_index.html. */
+  .element-tile {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+
+  .element-tile:hover { border-color: var(--gold-soft); }
+
+  .element-tile.selected {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 162, 39, 0.1);
+  }
+
+  .element-tile.hintable {
+    border-color: #5b8fb0;
+    box-shadow: 0 0 0 1px rgba(91, 143, 176, 0.35);
+  }
 
   /* These two are genuinely new concepts with no main-game equivalent —
      N-ary combining and "this came from your file" both only exist here. */
