@@ -142,6 +142,8 @@ function showLoadStatus(msg, isError = false) {
     el.classList.toggle("load-status-error", isError);
 }
 
+const moddedElements = new Set(); // elements introduced specifically by the uploaded file, not the base game
+
 async function handleLoadCustom() {
     const fileInput = document.getElementById("recipe-file-input");
     const file = fileInput?.files?.[0];
@@ -160,7 +162,31 @@ async function handleLoadCustom() {
     }
 
     configuredMaxArity = Number(document.getElementById("max-arity-select")?.value) || 2;
+    const includeBase = document.querySelector('input[name="include-base"]:checked')?.value === "yes";
+    hintModeEnabled = document.querySelector('input[name="hint-mode"]:checked')?.value === "yes";
+
     resetRecipeData();
+    moddedElements.clear();
+
+    // Base game loaded FIRST so the uploaded file's recipe() calls can
+    // deliberately override any base combination (last-write-wins on the
+    // recipes dict) — a mod replacing base behavior seems like the more
+    // useful default than the reverse.
+    if (includeBase) {
+        try {
+            const baseRes = await fetch("recipes.js", { cache: "no-store" });
+            if (baseRes.ok) {
+                const baseCode = await baseRes.text();
+                new Function("recipe", baseCode)(recipe);
+            }
+        } catch (e) {
+            console.warn("Could not load base game recipes:", e);
+            // Not fatal — the custom file still loads on its own below
+            // rather than blocking the whole thing over an optional merge.
+        }
+    }
+
+    const preCustomUniverse = new Set(universe);
 
     let code;
     try {
@@ -183,19 +209,345 @@ async function handleLoadCustom() {
         return;
     }
 
-    const hintMode = document.querySelector('input[name="hint-mode"]:checked')?.value === "yes";
+    // Anything new relative to the pre-custom-file snapshot came from the
+    // uploaded file specifically — including when base game wasn't loaded
+    // at all, in which case everything qualifies correctly by definition.
+    universe.forEach(el => {
+        if (!preCustomUniverse.has(el)) moddedElements.add(el);
+    });
 
-    let summary = `Loaded ${recipeList.length} recipe${recipeList.length === 1 ? "" : "s"}, ${universe.size} total elements, arities from 2 to ${maxArityFound}. Starting elements: ${startingElements.join(", ")}. Hint Mode: ${hintMode ? "on" : "off"}.`;
+    let summary = `Loaded ${recipeList.length} recipe${recipeList.length === 1 ? "" : "s"}, ${universe.size} total elements, arities from 2 to ${maxArityFound}.`;
     if (skippedLines.length > 0) {
-        summary += ` ${skippedLines.length} line${skippedLines.length === 1 ? "" : "s"} ${skippedLines.length === 1 ? "was" : "were"} skipped (exceeded the max combo size, or had fewer than 2 ingredients).`;
+        summary += ` ${skippedLines.length} line${skippedLines.length === 1 ? "" : "s"} ${skippedLines.length === 1 ? "was" : "were"} skipped.`;
     }
-    showLoadStatus(summary);
+    loadSummaryText = summary;
 
-    // Phase 2 takes over from here: launching the actual playable game
-    // using this validated recipes/universe/startingElements/hintMode/
-    // configuredMaxArity data. Not built yet — this phase stops at
-    // "successfully loaded and confirmed," on purpose.
+    launchCustomGame();
 }
+
+// ---------- Generalized game engine (N-ary, not just 2) ----------
+
+let discovered = new Set();
+let first = null; // classic 2-tap selection, used when configuredMaxArity === 2
+let combineTray = []; // multi-select tray, used when configuredMaxArity > 2
+let hintModeEnabled = false;
+let musicEnabled = false;
+let loadSummaryText = "";
+const recipesByElement = new Map(); // element -> every recipe it participates in, at any position
+
+function comboKey(ingredients) {
+    return [...ingredients].map(String).sort().join("|");
+}
+
+function buildRecipesByElement() {
+    recipesByElement.clear();
+    recipeList.forEach(r => {
+        new Set(r.ingredients).forEach(ing => {
+            if (!recipesByElement.has(ing)) recipesByElement.set(ing, []);
+            recipesByElement.get(ing).push(r);
+        });
+    });
+}
+
+// An element is "hintable" if it's part of SOME recipe where every OTHER
+// required ingredient is also currently discovered and the result isn't
+// yet found — the N-ary generalization of the main game's 2-ingredient
+// version of the same check.
+function hasActionableCombo(el) {
+    const involved = recipesByElement.get(el) || [];
+    return involved.some(r => !discovered.has(r.result) && r.ingredients.every(ing => discovered.has(ing)));
+}
+
+// Fixpoint reachability from the starting elements — an element is
+// reachable if it's a starting element, or some recipe produces it whose
+// ingredients are ALL already reachable. Generalizes cleanly to any arity
+// since it's just an .every() over the ingredients array either way.
+function computeReachable() {
+    const reachable = new Set(startingElements);
+    let changed = true;
+    while (changed) {
+        changed = false;
+        recipeList.forEach(r => {
+            if (reachable.has(r.result)) return;
+            if (r.ingredients.every(ing => reachable.has(ing))) {
+                reachable.add(r.result);
+                changed = true;
+            }
+        });
+    }
+    return reachable;
+}
+
+function attemptCombine(ingredients) {
+    const key = comboKey(ingredients);
+    const result = recipes[key] || null;
+    const resultEl = document.getElementById("game-result");
+
+    if (result) {
+        discovered.add(result);
+        if (resultEl) resultEl.textContent = `${ingredients.join(" + ")} = ${result}`;
+    } else if (resultEl) {
+        resultEl.textContent = `${ingredients.join(" + ")} = nothing happens`;
+    }
+
+    renderElements();
+    renderFamilyTree();
+    return result;
+}
+
+function makeElementTile(el) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "element-tile";
+    if (moddedElements.has(el)) btn.classList.add("modded");
+    if (hintModeEnabled && hasActionableCombo(el)) btn.classList.add("hintable");
+    if (configuredMaxArity === 2 && el === first) btn.classList.add("selected");
+    btn.textContent = el;
+
+    btn.addEventListener("click", () => {
+        if (configuredMaxArity === 2) {
+            if (first === null) {
+                first = el;
+                renderElements();
+                return;
+            }
+            const chosenFirst = first;
+            first = null;
+            attemptCombine([chosenFirst, el]);
+        } else {
+            if (combineTray.length >= configuredMaxArity) return;
+            combineTray.push(el);
+            renderTray();
+        }
+    });
+
+    return btn;
+}
+
+function renderTray() {
+    const tray = document.getElementById("combine-tray");
+    const btn = document.getElementById("combine-btn");
+    if (!tray || !btn) return;
+
+    tray.innerHTML = "";
+    combineTray.forEach((el, index) => {
+        const chip = document.createElement("span");
+        chip.className = "starting-chip"; // reusing the same chip look established for starting elements
+
+        const label = document.createElement("span");
+        label.textContent = el;
+        chip.appendChild(label);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "starting-chip-remove";
+        removeBtn.textContent = "✕";
+        removeBtn.addEventListener("click", () => {
+            combineTray.splice(index, 1);
+            renderTray();
+        });
+        chip.appendChild(removeBtn);
+
+        tray.appendChild(chip);
+    });
+
+    btn.disabled = combineTray.length < 2;
+}
+
+function updateProgress() {
+    const progressEl = document.getElementById("game-progress");
+    if (progressEl) progressEl.textContent = `${discovered.size} / ${universe.size} discovered`;
+
+    const banner = document.getElementById("game-complete-banner");
+    if (banner) {
+        const complete = discovered.size >= universe.size;
+        banner.hidden = !complete;
+        if (complete) {
+            // Deliberately no "suggest an element" link here, unlike the
+            // main game — this is a personal custom ruleset, not the
+            // shared game, so there's nowhere meaningful to send a
+            // suggestion to.
+            banner.textContent = "All elements discovered for this ruleset.";
+        }
+    }
+}
+
+function renderElements() {
+    const container = document.getElementById("game-elements");
+    if (!container) return;
+
+    const query = (document.getElementById("game-search")?.value || "").toLowerCase().trim();
+    let list = [...discovered].filter(el => el.toLowerCase().includes(query));
+    list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+    if (hintModeEnabled) {
+        const hintable = list.filter(hasActionableCombo);
+        const rest = list.filter(el => !hasActionableCombo(el));
+        list = [...hintable, ...rest];
+    }
+
+    container.innerHTML = "";
+    list.forEach(el => container.appendChild(makeElementTile(el)));
+
+    updateProgress();
+}
+
+function renderFamilyTree() {
+    const container = document.getElementById("tree-list");
+    if (!container) return;
+
+    const query = (document.getElementById("tree-search")?.value || "").toLowerCase().trim();
+    container.innerHTML = "";
+
+    [...discovered]
+        .filter(el => el.toLowerCase().includes(query))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+        .forEach(el => {
+            const card = document.createElement("div");
+            card.className = "tree-card";
+
+            const h4 = document.createElement("h4");
+            h4.textContent = el;
+            if (moddedElements.has(el)) h4.style.color = "#b9a3ef";
+            card.appendChild(h4);
+
+            const madeFrom = recipeList.filter(r => r.result === el);
+            if (madeFrom.length > 0) {
+                madeFrom.forEach(r => {
+                    const p = document.createElement("p");
+                    p.textContent = `Made from: ${r.ingredients.join(" + ")}`;
+                    card.appendChild(p);
+                });
+            } else if (startingElements.includes(el)) {
+                const p = document.createElement("p");
+                p.textContent = "Starting element";
+                card.appendChild(p);
+            }
+
+            container.appendChild(card);
+        });
+}
+
+function renderImpossibleNotice() {
+    const container = document.getElementById("impossible-notice");
+    if (!container) return;
+
+    const reachable = computeReachable();
+    const impossible = [...universe].filter(el => !reachable.has(el)).sort();
+
+    container.innerHTML = "";
+
+    const h2 = document.createElement("h2");
+    h2.textContent = "Impossible elements";
+    container.appendChild(h2);
+
+    const summaryP = document.createElement("p");
+    summaryP.className = "help";
+    summaryP.textContent = loadSummaryText;
+    container.appendChild(summaryP);
+
+    const p = document.createElement("p");
+    if (impossible.length === 0) {
+        p.textContent = "None — every element in this ruleset can be reached from the starting elements.";
+        container.appendChild(p);
+        return;
+    }
+
+    p.textContent = `${impossible.length} element${impossible.length === 1 ? "" : "s"} can never actually be made with this ruleset:`;
+    container.appendChild(p);
+
+    const ul = document.createElement("ul");
+    impossible.forEach(el => {
+        const li = document.createElement("li");
+        li.textContent = el;
+        ul.appendChild(li);
+    });
+    container.appendChild(ul);
+}
+
+function setupGameTabs() {
+    const buttons = document.querySelectorAll("#game-view button.tab-button");
+    const panels = document.querySelectorAll("#game-view .tab-panel");
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            buttons.forEach(b => b.classList.remove("active"));
+            panels.forEach(p => p.classList.remove("active"));
+            btn.classList.add("active");
+            document.getElementById(`tab-${btn.dataset.tab}`)?.classList.add("active");
+            if (btn.dataset.tab === "game-tree") renderFamilyTree();
+        });
+    });
+}
+
+function setupCombineUI() {
+    const btn = document.getElementById("combine-btn");
+    const tray = document.getElementById("combine-tray");
+    if (configuredMaxArity > 2) {
+        if (btn) btn.hidden = false;
+        if (tray) tray.hidden = false;
+    }
+    btn?.addEventListener("click", () => {
+        if (combineTray.length < 2) return;
+        attemptCombine([...combineTray]);
+        combineTray = [];
+        renderTray();
+    });
+}
+
+function setupGameSearch() {
+    document.getElementById("game-search")?.addEventListener("input", renderElements);
+    document.getElementById("tree-search")?.addEventListener("input", renderFamilyTree);
+}
+
+function setupGameAboutToggles() {
+    const hintBtn = document.getElementById("game-hint-toggle");
+    const musicBtn = document.getElementById("game-music-toggle");
+
+    if (hintBtn) {
+        hintBtn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+        hintBtn.classList.toggle("on", hintModeEnabled);
+        hintBtn.addEventListener("click", () => {
+            hintModeEnabled = !hintModeEnabled;
+            hintBtn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+            hintBtn.classList.toggle("on", hintModeEnabled);
+            renderElements();
+        });
+    }
+
+    if (musicBtn) {
+        // Simplified stub for this build, as flagged before starting —
+        // no audio engine wired up yet, just the toggle state itself.
+        musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+        musicBtn.addEventListener("click", () => {
+            musicEnabled = !musicEnabled;
+            musicBtn.textContent = musicEnabled ? "Music: On" : "Music: Off";
+            musicBtn.classList.toggle("on", musicEnabled);
+        });
+    }
+}
+
+function launchCustomGame() {
+    discovered = new Set(startingElements);
+    first = null;
+    combineTray = [];
+    buildRecipesByElement();
+
+    const wizard = document.getElementById("wizard-view");
+    const game = document.getElementById("game-view");
+    if (wizard) wizard.hidden = true;
+    if (game) game.hidden = false;
+
+    setupGameTabs();
+    setupCombineUI();
+    setupGameSearch();
+    setupGameAboutToggles();
+
+    renderElements();
+    renderFamilyTree();
+    renderImpossibleNotice();
+}
+
+
 
 // ---------- Init ----------
 
