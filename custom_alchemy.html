@@ -202,34 +202,111 @@
 
   /* ---------- Game view (post-"Load Custom") ---------- */
 
+  /* THE critical fix: this rule never existed before, so every panel
+     (Elements, Family Tree, About) rendered stacked on top of each other
+     regardless of which tab was "active" — nothing was ever actually
+     hidden. Copied directly from alchemy_index.html, where it already
+     works correctly. */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
   #game-view .tabs {
     display: flex;
-    gap: 4px;
-    padding: 0 4px;
+    gap: 3px;
+    padding: 0 6px;
+    overflow-x: auto;
   }
 
-  .game-progress-text {
+  /* Everything below this point is copied directly from alchemy_index.html
+     rather than reconstructed, per the note that a look-alike-but-different
+     version isn't good enough here — same seal, same section-label, same
+     about-block/about-group-label split, same tree-card. */
+
+  .seal {
+    width: auto;
+    min-width: 84px;
+    height: 72px;
+    padding: 0 20px;
+    border-radius: 999px;
+    border: 2px solid var(--gold);
+    box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px var(--gold-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    margin: 0 auto 8px;
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
+    color: var(--gold);
+  }
+
+  .seal .progress-fraction { font-size: 0.95rem; font-weight: 500; white-space: nowrap; }
+  .seal .seal-label { font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; }
+  .seal.complete { border-color: #e9c85f; box-shadow: 0 0 0 4px var(--ink-bg), 0 0 0 5px rgba(233, 200, 95, 0.55); }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
     color: var(--text-muted);
     margin: 0 0 10px;
   }
 
-  .game-elements-grid { max-height: none; }
+  .sound-toggle {
+    display: block;
+    margin: 0 auto 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    background: var(--panel);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 14px;
+    cursor: pointer;
+  }
 
-  /* Purple specifically distinguishes "this came from the uploaded file"
-     from base-game content — a deliberately different hue from gold
-     (hintable) and red (destructive) so all three stay unambiguous even
-     when combined on the same tile. */
+  .sound-toggle.on { color: var(--gold); border-color: var(--gold-soft); }
+
+  #game-tree-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  #game-tree-header .progress-fraction { font-family: 'IBM Plex Mono', monospace; color: var(--gold); }
+
+  .about-group-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--gold);
+    border-bottom: 1px solid var(--gold-soft);
+    padding-bottom: 8px;
+    margin: 0 0 16px;
+  }
+
+  .about-group-label:not(:first-child) { margin-top: 32px; }
+
+  .about-block { margin-bottom: 20px; }
+  .about-block h2 { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; color: var(--parchment); margin: 0 0 8px; }
+  .about-block p { color: var(--text-muted); line-height: 1.55; font-size: 0.92rem; margin: 0 0 8px; }
+
+  .tree-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-soft);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .tree-card h3 { font-family: 'Cormorant Garamond', serif; font-size: 1.3rem; margin: 0 0 4px; color: var(--parchment); }
+  .tree-origin { margin: 0 0 6px; color: var(--text-muted); font-size: 0.85rem; font-family: 'IBM Plex Mono', monospace; }
+  .tree-hint { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--gold); }
+  .tree-pending { margin: 8px 0 0; font-size: 0.8rem; font-style: italic; color: var(--text-muted); }
+
+  /* These two are genuinely new concepts with no main-game equivalent —
+     N-ary combining and "this came from your file" both only exist here. */
   .element-tile.modded {
     border-color: #8a6fd1;
     color: #b9a3ef;
     background: rgba(138, 111, 209, 0.12);
-  }
-
-  .element-tile.hintable {
-    border-color: var(--gold);
-    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.3);
   }
 
   .element-tile.modded.hintable {
@@ -248,8 +325,6 @@
     min-height: 20px;
   }
 
-  .combine-tray .element-tile { cursor: default; }
-
   #combine-btn {
     width: 100%;
     background: var(--gold);
@@ -258,12 +333,12 @@
     padding: 10px;
     border-radius: 6px;
     margin-bottom: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+    font-size: 0.8rem;
   }
 
-  #combine-btn:disabled {
-    background: var(--panel);
-    color: var(--text-muted);
-  }
+  #combine-btn:disabled { background: var(--panel); color: var(--text-muted); }
 
   #game-result {
     text-align: center;
@@ -271,49 +346,6 @@
     font-size: 0.9rem;
     color: var(--gold);
     min-height: 1.3em;
-  }
-
-  .game-complete-banner {
-    text-align: center;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.1rem;
-    color: var(--gold);
-  }
-
-  .toggle-btn {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    padding: 8px 16px;
-    border-radius: 20px;
-  }
-
-  .toggle-btn.on { border-color: var(--gold); color: var(--gold); }
-
-  .tree-list { display: flex; flex-direction: column; gap: 8px; }
-
-  .tree-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 12px 14px;
-  }
-
-  .tree-card h4 {
-    margin: 0 0 6px;
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.1rem;
-    color: var(--parchment);
-  }
-
-  .tree-card p {
-    margin: 2px 0;
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    font-family: 'IBM Plex Mono', monospace;
   }
 </style>
 </head>
@@ -396,33 +428,48 @@ recipe("air", "water", "water", "superMist");</pre>
   <div class="panel-card">
 
     <section id="tab-game-elements" class="tab-panel active">
-      <p id="game-progress" class="game-progress-text"></p>
-      <input type="text" id="game-search" class="picker-search" placeholder="Search elements…">
+      <div class="seal" id="game-progress-seal">
+        <span class="progress-fraction">0 / 0</span>
+        <span class="seal-label">Found</span>
+      </div>
+
+      <p id="game-complete-banner" hidden></p>
+      <p id="game-result" aria-live="polite"></p>
 
       <div id="combine-tray" class="combine-tray" hidden></div>
       <button id="combine-btn" type="button" hidden disabled>Combine</button>
 
-      <p id="game-result"></p>
-      <p id="game-complete-banner" class="game-complete-banner" hidden></p>
+      <input id="game-search" type="text" placeholder="Search your discovered elements…">
 
-      <div id="game-elements" class="picker-list game-elements-grid"></div>
+      <p class="section-label">Elements</p>
+      <div id="game-elements"></div>
     </section>
 
     <section id="tab-game-tree" class="tab-panel">
-      <input type="text" id="tree-search" class="picker-search" placeholder="Search elements…">
-      <div id="tree-list" class="tree-list"></div>
+      <div id="game-tree-header">
+        <span>Elements you've uncovered so far</span>
+        <span class="progress-fraction">0 / 0</span>
+      </div>
+
+      <input id="tree-search" type="text" placeholder="Search elements…">
+      <div id="tree-list"></div>
     </section>
 
     <section id="tab-game-about" class="tab-panel">
-      <div class="panel-card">
+      <div class="about-group-label">Settings</div>
+
+      <div class="about-block">
         <h2>Music</h2>
-        <button id="game-music-toggle" type="button" class="toggle-btn">Music: Off</button>
+        <button id="game-music-toggle" type="button" class="sound-toggle">Music: Off</button>
       </div>
-      <div class="panel-card">
+
+      <div class="about-block">
         <h2>Hint Mode</h2>
-        <button id="game-hint-toggle" type="button" class="toggle-btn">Hint Mode: Off</button>
+        <button id="game-hint-toggle" type="button" class="sound-toggle">Hint Mode: Off</button>
       </div>
-      <div id="impossible-notice" class="panel-card"></div>
+
+      <div class="about-group-label">Information</div>
+      <div id="impossible-notice" class="about-block"></div>
     </section>
 
   </div>
