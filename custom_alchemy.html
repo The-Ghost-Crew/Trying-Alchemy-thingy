@@ -580,6 +580,8 @@
   .wizard-card select { width: 100%; }
   .radio-row { display: flex; gap: 20px; }
   .radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--text); cursor: pointer; }
+  .checkbox-row label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text); cursor: pointer; }
+  .checkbox-row label.disabled-label { color: var(--text-muted); cursor: default; }
   #starting-elements-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .starting-chip {
     display: inline-flex; align-items: center; gap: 6px;
@@ -626,7 +628,7 @@
 <main id="wizard-view">
 
   <div class="about-block panel-card wizard-card">
-    <h2>Combo size</h2>
+    <h2>Ruleset</h2>
     <p>Classic mode is two elements making one: <code>X + Y = Z</code>. Choosing a higher number allows recipes with more ingredients (up to 9), and adds a "Combine" tray in the game for mixing more than two at once.</p>
     <select id="max-arity-select">
       <option value="2" selected>2 (classic — X + Y = Z)</option>
@@ -638,6 +640,14 @@
       <option value="8">Up to 8</option>
       <option value="9">Up to 9</option>
     </select>
+
+    <p style="margin-top: 16px;">Multi-product recipes work automatically — if your file has <code>recipe("wood","human","tool")</code> and <code>recipe("wood","human","house")</code>, combining wood + human makes both at once. Nothing to enable here.</p>
+
+    <p style="margin-top: 12px;"><strong>Ordered components</strong> — off by default, elements combine regardless of the order you pick them (<code>X + Y</code> same as <code>Y + X</code>). Turn this on to make order matter: <code>recipe("wood","human","tool")</code> and <code>recipe("human","wood","house")</code> become two different recipes — wood tapped first makes tool, human tapped first makes house.</p>
+    <div class="radio-row">
+      <label><input type="radio" name="ordered-components" value="no" checked> Off — order doesn't matter</label>
+      <label><input type="radio" name="ordered-components" value="yes"> On — order matters</label>
+    </div>
   </div>
 
   <div class="about-block panel-card wizard-card">
@@ -655,6 +665,13 @@
     <div class="radio-row">
       <label><input type="radio" name="include-base" value="no" checked> No — custom file only</label>
       <label><input type="radio" name="include-base" value="yes"> Yes — merge with base game</label>
+    </div>
+
+    <div class="checkbox-row" style="margin-top: 12px;">
+      <label id="bring-over-label" class="disabled-label">
+        <input type="checkbox" id="bring-over-discovered" disabled>
+        Bring over the elements you've already discovered in the main game
+      </label>
     </div>
   </div>
 
