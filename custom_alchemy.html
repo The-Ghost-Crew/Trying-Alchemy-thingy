@@ -34,6 +34,10 @@
     font-family: 'Inter', sans-serif;
     min-height: 100vh;
     padding: 24px 16px 64px;
+    /* Inherited property — covers every element tile, result line, and
+       tree card in one rule. Arguably more important here than the main
+       game: uploaded element names are entirely unpredictable in length. */
+    overflow-wrap: break-word;
   }
 
   header { max-width: 880px; margin: 0 auto 24px; text-align: center; }
