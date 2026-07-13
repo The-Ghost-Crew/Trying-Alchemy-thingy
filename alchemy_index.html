@@ -45,6 +45,12 @@
     font-family: 'Inter', sans-serif;
     min-height: 100vh;
     padding: 24px 16px 64px;
+    /* Inherited property — this one rule covers every element tile,
+       result line, and tree card on the page, including anything added
+       later. Without it, a name with no spaces to wrap at (a real English
+       word, or someone's uploaded element name) just overflows straight
+       past its container instead of breaking. */
+    overflow-wrap: break-word;
   }
 
   header { max-width: 880px; margin: 0 auto 24px; text-align: center; }
