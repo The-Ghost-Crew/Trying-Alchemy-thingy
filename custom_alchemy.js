@@ -1254,27 +1254,38 @@ function onReady(fn) {
 }
 
 onReady(() => {
-    loadSoundPreference();
-    loadMusicPreference();
-    loadSortModePreference();
-    loadDeadEndCollapsePreference();
+    const steps = [
+        ["loadSoundPreference", loadSoundPreference],
+        ["loadMusicPreference", loadMusicPreference],
+        ["loadSortModePreference", loadSortModePreference],
+        ["loadDeadEndCollapsePreference", loadDeadEndCollapsePreference],
+        ["setupStartingElementsEditor", setupStartingElementsEditor],
+        ["setupIncludeBaseToggle", setupIncludeBaseToggle],
+        ["setupFileUploadControl", setupFileUploadControl],
+        ["load-custom-btn listener", () => document.getElementById("load-custom-btn")?.addEventListener("click", handleLoadCustom)],
+        // Game-view controls exist in the DOM (hidden) from the start, so
+        // all of this wires up once here, exactly like the main game's init.
+        ["setupGameTabs", setupGameTabs],
+        ["setupSoundToggle", setupSoundToggle],
+        ["setupMusicToggle", setupMusicToggle],
+        ["setupMusicVolumeSlider", setupMusicVolumeSlider],
+        ["setupHintModeToggle", setupHintModeToggle],
+        ["setupSortToggle", setupSortToggle],
+        ["setupDeadEndToggle", setupDeadEndToggle],
+        ["setupTreeSearch", setupTreeSearch],
+        ["search listener", () => document.getElementById("search")?.addEventListener("input", render)],
+    ];
 
-    setupStartingElementsEditor();
-    setupIncludeBaseToggle();
-    setupFileUploadControl();
-    document.getElementById("load-custom-btn")?.addEventListener("click", handleLoadCustom);
-
-    // Game-view controls exist in the DOM (hidden) from the start, so all
-    // of this wires up once here, exactly like the main game's init.
-    setupGameTabs();
-    setupSoundToggle();
-    setupMusicToggle();
-    setupMusicVolumeSlider();
-    setupHintModeToggle();
-    setupSortToggle();
-    setupDeadEndToggle();
-    setupTreeSearch();
-    document.getElementById("search")?.addEventListener("input", render);
+    steps.forEach(([name, fn]) => {
+        try {
+            fn();
+        } catch (e) {
+            // A failure in any ONE of these must not be able to silently
+            // take out every step after it — that's exactly the failure
+            // pattern this wrapping exists to close off.
+            console.error(`Custom Alchemy init step "${name}" failed:`, e);
+        }
+    });
 });
 
 })();
