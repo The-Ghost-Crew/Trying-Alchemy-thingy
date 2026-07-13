@@ -29,8 +29,12 @@ const recipesByElement = new Map(); // element -> recipes it appears in as an in
 let maxArityFound = 0;
 const skippedLines = [];
 
+let orderedComponents = false; // wizard setting: when true, click/registration order matters
+let bringOverDiscovered = false; // wizard setting: seed discovered with the main game's own save, requires includeBase
+
 function comboKey(ingredients) {
-    return [...ingredients].map(String).sort().join("|");
+    const arr = orderedComponents ? [...ingredients] : [...ingredients].sort();
+    return arr.map(String).join("|");
 }
 
 // Variable-arity: the LAST argument is always the result, everything
@@ -51,12 +55,34 @@ function recipe(...args) {
         return;
     }
 
-    recipes[comboKey(ingredients)] = result; // last-write-wins: the uploaded file loads after base, so mods override
+    const key = comboKey(ingredients);
+
+    if (parsingCustomFile && !keysOverwrittenByCustom.has(key)) {
+        // First time the CUSTOM FILE touches this exact combo — this
+        // replaces whatever base game may have defined here (mods
+        // override base, as promised in the wizard), rather than adding
+        // to it. A SECOND recipe() call for the same combo later in the
+        // same custom file still correctly stacks (multi-product).
+        delete recipes[key];
+        // recipeList feeds hint mode, reachability, and the tree cards'
+        // "combines into" list — without this, they'd keep advertising a
+        // result combine() no longer actually produces.
+        for (let i = recipeList.length - 1; i >= 0; i--) {
+            if (comboKey(recipeList[i].ingredients) === key) recipeList.splice(i, 1);
+        }
+        keysOverwrittenByCustom.add(key);
+    }
+
+    if (!recipes[key]) recipes[key] = [];
+    if (!recipes[key].includes(result)) recipes[key].push(result); // same combo, multiple recipe() calls with different results -> multi-product
     recipeList.push({ ingredients, result });
     ingredients.forEach(i => universe.add(i));
     universe.add(result);
     maxArityFound = Math.max(maxArityFound, arity);
 }
+
+let parsingCustomFile = false;
+const keysOverwrittenByCustom = new Set();
 
 function resetRecipeData() {
     Object.keys(recipes).forEach(k => delete recipes[k]);
@@ -66,8 +92,12 @@ function resetRecipeData() {
     moddedElements.clear();
     skippedLines.length = 0;
     maxArityFound = 0;
+    parsingCustomFile = false;
+    keysOverwrittenByCustom.clear();
 }
 
+// Returns an array of results (possibly length > 1 for multi-product
+// recipes), or null if this exact combo has none.
 function combine(ingredients) {
     return recipes[comboKey(ingredients)] || null;
 }
@@ -448,32 +478,37 @@ function updateProgressDisplays() {
 // ---------- Combine (shared by both interaction modes) ----------
 
 function attemptCombine(ingredients) {
-    const result = combine(ingredients);
+    const results = combine(ingredients); // array of results, or null
     resetHintIdleTimer(); // a combine attempt, success or not, resets the idle nudge
 
     const resultEl = document.getElementById("result");
     if (resultEl) {
-        resultEl.textContent = result
-            ? `${ingredients.join(" + ")} = ${result}`
+        resultEl.textContent = results
+            ? `${ingredients.join(" + ")} = ${results.join(", ")}`
             : `${ingredients.join(" + ")} = nothing happens`;
         resultEl.classList.remove("flash");
         void resultEl.offsetWidth; // restart the animation even for repeat results
         resultEl.classList.add("flash");
     }
 
-    if (result && !discovered.has(result)) {
-        discovered.add(result);
-        discoveryOrder.push(result);
-        markJustDiscovered(result);
-        treeDirty = true;
-        playDiscoverySound();
-    } else if (!result) {
+    if (results) {
+        const newlyDiscovered = results.filter(r => !discovered.has(r));
+        newlyDiscovered.forEach(r => {
+            discovered.add(r);
+            discoveryOrder.push(r);
+        });
+        if (newlyDiscovered.length > 0) {
+            markJustDiscovered(newlyDiscovered[newlyDiscovered.length - 1]);
+            treeDirty = true;
+            playDiscoverySound();
+        }
+    } else {
         playNothingSound();
     }
 
     updateProgressDisplays();
     render();
-    return result;
+    return results;
 }
 
 // ---------- Elements tab (tile from game.js, click adapted for N-ary) ----------
@@ -566,7 +601,13 @@ function setupCombineUI() {
 // ---------- Dead-end collapse (copied from game.js) ----------
 
 const DEADEND_COLLAPSE_KEY = "alchemy_deadend_collapsed";
-let deadEndCollapsed = true;
+// Defaults EXPANDED here, unlike the main game's collapsed default — a
+// freshly loaded custom ruleset is much more likely to have starting
+// elements with zero recipes referencing them at all (confirmed: this is
+// exactly what looked like "A-Z/Recent sort is broken" before — the
+// element wasn't misordered, it was correctly a dead end from the
+// moment it existed, sitting in a hidden section).
+let deadEndCollapsed = false;
 
 function loadDeadEndCollapsePreference() {
     try {
@@ -982,6 +1023,37 @@ function renderStartingElements() {
     });
 }
 
+function setupIncludeBaseToggle() {
+    const radios = document.querySelectorAll('input[name="include-base"]');
+    const checkbox = document.getElementById("bring-over-discovered");
+    const label = document.getElementById("bring-over-label");
+    if (!checkbox || !label) return;
+
+    const sync = () => {
+        const yes = document.querySelector('input[name="include-base"]:checked')?.value === "yes";
+        checkbox.disabled = !yes;
+        label.classList.toggle("disabled-label", !yes);
+        if (!yes) checkbox.checked = false; // can't stay checked once its prerequisite is off
+    };
+
+    radios.forEach(r => r.addEventListener("change", sync));
+    sync();
+}
+
+// Reads the SAME key the main game saves discovered elements under.
+function loadMainGameDiscovered() {
+    try {
+        const saved = localStorage.getItem("alchemy_discovered_elements");
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) return parsed.filter(el => typeof el === "string");
+        }
+    } catch (e) {
+        console.warn("Could not load main game discovered elements:", e);
+    }
+    return [];
+}
+
 function setupStartingElementsEditor() {
     renderStartingElements();
 
@@ -1059,6 +1131,8 @@ async function handleLoadCustom() {
     configuredMaxArity = Number(document.getElementById("max-arity-select")?.value) || 2;
     const includeBase = document.querySelector('input[name="include-base"]:checked')?.value === "yes";
     hintModeEnabled = document.querySelector('input[name="hint-mode"]:checked')?.value === "yes";
+    orderedComponents = document.querySelector('input[name="ordered-components"]:checked')?.value === "yes";
+    bringOverDiscovered = includeBase && document.getElementById("bring-over-discovered")?.checked === true;
 
     resetRecipeData();
 
@@ -1085,6 +1159,8 @@ async function handleLoadCustom() {
         showLoadStatus("Could not read that file — try again.", true);
         return;
     }
+
+    parsingCustomFile = true; // from here on, recipe() calls override base rather than merging with it
 
     try {
         const runRecipes = new Function("recipe", code);
@@ -1123,6 +1199,19 @@ function launchCustomGame() {
 
     discovered = new Set(startingElements);
     discoveryOrder = [...startingElements];
+
+    if (bringOverDiscovered) {
+        // Filtered against THIS ruleset's universe as a safety net — the
+        // main game's save could reference an element that no longer
+        // exists if recipes.js changed since they last played.
+        loadMainGameDiscovered().forEach(el => {
+            if (universe.has(el) && !discovered.has(el)) {
+                discovered.add(el);
+                discoveryOrder.push(el);
+            }
+        });
+    }
+
     first = null;
     combineTray = [];
     treeDirty = true;
@@ -1171,6 +1260,7 @@ onReady(() => {
     loadDeadEndCollapsePreference();
 
     setupStartingElementsEditor();
+    setupIncludeBaseToggle();
     setupFileUploadControl();
     document.getElementById("load-custom-btn")?.addEventListener("click", handleLoadCustom);
 
