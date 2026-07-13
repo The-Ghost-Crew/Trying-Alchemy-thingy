@@ -447,12 +447,20 @@
   .artist-toggle.collapsed .chevron { transform: rotate(-90deg); }
 
   .artist-credit-body { padding: 0 0 6px 22px; }
-  .artist-credit-body p { margin: 0; }
+  .artist-credit-body p { margin: 0 0 4px; }
+  .artist-credit-body p:last-child { margin-bottom: 0; }
 
   .ai-tag {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
     color: #e0a8a4;
+    font-style: italic;
+  }
+
+  .source-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--gold);
     font-style: italic;
   }
 
@@ -1011,6 +1019,18 @@
         </button>
         <div class="artist-credit-body" hidden>
           <p><strong>AI</strong> <span class="ai-tag">(AI-Generated)</span></p>
+        </div>
+
+        <button class="artist-toggle simple-toggle" type="button">
+          <span class="chevron">▾</span> electromagneta
+        </button>
+        <div class="artist-credit-body" hidden>
+          <p><strong>Yggdrasil</strong> <span class="source-tag">(Online Image)</span></p>
+          <p><strong>Clay</strong></p>
+          <p><strong>Sand</strong></p>
+          <p><strong>Diamond blade</strong></p>
+          <p><strong>Idea</strong></p>
+          <p><strong>Nerd</strong> <span class="source-tag">(Online Image)</span></p>
         </div>
       </div>
 
