@@ -1,0 +1,419 @@
+(function () {
+"use strict";
+
+const ELEMENT_ICON_DIR = "element-icons/";
+const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
+
+// ---------- Recipe data (same 2-ingredient model as the real game.js —
+// this reads the actual recipes.js, not the generalized custom-mod one) ----------
+
+const recipes = {};
+const recipeList = [];
+const universe = new Set(BASE_ELEMENTS);
+const recipesByElement = new Map();
+const missingIcons = new Set();
+
+function indexRecipe(el, entry) {
+    if (!recipesByElement.has(el)) recipesByElement.set(el, []);
+    recipesByElement.get(el).push(entry);
+}
+
+function recipe(a, b, result) {
+    const aT = a.trim();
+    const bT = b.trim();
+    const resultT = result.trim();
+    const key = [aT, bT].sort().join("|");
+
+    if (recipes[key]) return; // silently skip a duplicate, matching the main game's own tolerant behavior
+
+    recipes[key] = resultT;
+    const entry = { a: aT, b: bT, result: resultT };
+    recipeList.push(entry);
+    indexRecipe(aT, entry);
+    if (bT !== aT) indexRecipe(bT, entry);
+
+    universe.add(aT);
+    universe.add(bT);
+    universe.add(resultT);
+}
+
+async function loadRecipes() {
+    const res = await fetch("recipes.js", { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const code = await res.text();
+    const runRecipes = new Function("recipe", code);
+    runRecipes(recipe);
+}
+
+// ---------- Tiers + shortest path ----------
+//
+// tier(x) = 0 for the four starting elements. For everything else, it's
+// the SHORTEST possible depth achievable by any recipe that produces it —
+// 1 + the higher of its two ingredients' own tiers, minimized across
+// every recipe that makes it, not just whichever one happens to be
+// listed first in the file. bestRecipe records which specific recipe
+// actually achieves that minimum, which the shortest-path view then
+// walks back through.
+
+function computeTiers() {
+    const tier = new Map();
+    const bestRecipe = new Map();
+
+    BASE_ELEMENTS.forEach(el => tier.set(el, 0));
+
+    let changed = true;
+    while (changed) {
+        changed = false;
+        recipeList.forEach(entry => {
+            if (!tier.has(entry.a) || !tier.has(entry.b)) return;
+            const candidate = Math.max(tier.get(entry.a), tier.get(entry.b)) + 1;
+            if (!tier.has(entry.result) || candidate < tier.get(entry.result)) {
+                tier.set(entry.result, candidate);
+                bestRecipe.set(entry.result, entry);
+                changed = true;
+            }
+        });
+    }
+
+    return { tier, bestRecipe };
+}
+
+// Flattens the minimal recipe tree for a target into a deduplicated,
+// dependency-ordered build sequence — each intermediate element appears
+// only once, even if it's reused as an ingredient more than once further
+// up the tree.
+function buildOrder(target, bestRecipe) {
+    const visited = new Set(BASE_ELEMENTS);
+    const order = [];
+
+    function visit(el) {
+        if (visited.has(el)) return;
+        visited.add(el);
+        const entry = bestRecipe.get(el);
+        if (!entry) return; // unreachable from the base elements
+        visit(entry.a);
+        visit(entry.b);
+        order.push(entry);
+    }
+
+    visit(target);
+    return order;
+}
+
+let tierData = null; // set once loadRecipes() resolves
+
+// ---------- Icons (same logic as game.js, verbatim) ----------
+
+function elementIconSlug(element) {
+    return element.trim().replace(/\s+/g, "-");
+}
+
+function elementIconPath(element) {
+    return `${ELEMENT_ICON_DIR}${encodeURIComponent(elementIconSlug(element))}.svg`;
+}
+
+function tryLoadIcon(element, imgEl) {
+    if (missingIcons.has(element)) {
+        imgEl.hidden = true;
+        return;
+    }
+    imgEl.src = elementIconPath(element);
+    imgEl.alt = "";
+    imgEl.hidden = false;
+    imgEl.onerror = () => {
+        missingIcons.add(element);
+        imgEl.hidden = true;
+    };
+}
+
+// ---------- Navigation ----------
+
+function showElement(name) {
+    if (!universe.has(name)) return;
+    location.hash = `#${encodeURIComponent(name)}`;
+    renderDetail(name);
+}
+
+function showBrowse() {
+    location.hash = "";
+    document.getElementById("browse-view").classList.remove("hidden");
+    document.getElementById("detail-view").classList.remove("active");
+}
+
+function elementLink(name) {
+    const a = document.createElement("a");
+    a.href = `#${encodeURIComponent(name)}`;
+    a.textContent = name;
+    a.addEventListener("click", e => {
+        e.preventDefault();
+        showElement(name);
+    });
+    return a;
+}
+
+// ---------- Browse view: tier-grouped listing ----------
+
+function renderBrowse() {
+    const container = document.getElementById("tier-list");
+    container.innerHTML = "";
+
+    const { tier } = tierData;
+    const maxTier = Math.max(0, ...[...tier.values()]);
+
+    for (let t = 0; t <= maxTier; t++) {
+        const elementsAtTier = [...universe].filter(el => tier.get(el) === t).sort((a, b) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" })
+        );
+        if (elementsAtTier.length === 0) continue;
+
+        const heading = document.createElement("p");
+        heading.className = "tier-heading";
+        heading.textContent = t === 0 ? "Starting elements" : `Tier ${t}`;
+        container.appendChild(heading);
+
+        const sub = document.createElement("p");
+        sub.className = "tier-sub";
+        sub.textContent = t === 0
+            ? "Available from the very start."
+            : `Reachable using only tier ${t - 1} elements or lower.`;
+        container.appendChild(sub);
+
+        const grid = document.createElement("div");
+        grid.className = "element-grid";
+        elementsAtTier.forEach(el => grid.appendChild(makeElementTile(el)));
+        container.appendChild(grid);
+    }
+
+    // Anything in universe with no tier at all is unreachable from the
+    // base elements — same concept as the main game's orphan report.
+    const unreachable = [...universe].filter(el => !tier.has(el)).sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: "base" })
+    );
+    if (unreachable.length > 0) {
+        const heading = document.createElement("p");
+        heading.className = "tier-heading";
+        heading.textContent = "Unreachable";
+        container.appendChild(heading);
+
+        const sub = document.createElement("p");
+        sub.className = "tier-sub";
+        sub.textContent = "Never produced by any recipe — can't currently be reached from the starting elements.";
+        container.appendChild(sub);
+
+        const grid = document.createElement("div");
+        grid.className = "element-grid";
+        unreachable.forEach(el => grid.appendChild(makeElementTile(el)));
+        container.appendChild(grid);
+    }
+}
+
+function makeElementTile(el) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "element-tile";
+
+    const img = document.createElement("img");
+    img.hidden = true;
+    tryLoadIcon(el, img);
+    btn.appendChild(img);
+
+    btn.appendChild(document.createTextNode(el));
+    btn.addEventListener("click", () => showElement(el));
+    return btn;
+}
+
+// ---------- Detail view ----------
+
+function renderDetail(name) {
+    document.getElementById("browse-view").classList.add("hidden");
+    document.getElementById("detail-view").classList.add("active");
+
+    document.getElementById("detail-name").textContent = name;
+
+    const icon = document.getElementById("detail-icon");
+    tryLoadIcon(name, icon);
+
+    const { tier, bestRecipe } = tierData;
+    const tierEl = document.getElementById("detail-tier");
+    if (BASE_ELEMENTS.includes(name)) {
+        tierEl.textContent = "Starting element";
+    } else if (tier.has(name)) {
+        tierEl.textContent = `Tier ${tier.get(name)}`;
+    } else {
+        tierEl.textContent = "Unreachable from the starting elements";
+    }
+
+    // Made from
+    const madeFromEl = document.getElementById("detail-made-from");
+    madeFromEl.innerHTML = "";
+    const madeFrom = recipeList.filter(r => r.result === name);
+    if (BASE_ELEMENTS.includes(name)) {
+        const p = document.createElement("p");
+        p.className = "empty-note";
+        p.textContent = "This is a starting element — no recipe needed.";
+        madeFromEl.appendChild(p);
+    } else if (madeFrom.length === 0) {
+        const p = document.createElement("p");
+        p.className = "empty-note";
+        p.textContent = "No known recipe produces this element yet.";
+        madeFromEl.appendChild(p);
+    } else {
+        madeFrom.forEach(r => {
+            const card = document.createElement("div");
+            card.className = "tree-card";
+            const p = document.createElement("p");
+            p.className = "tree-origin";
+            p.appendChild(elementLink(r.a));
+            p.appendChild(document.createTextNode(" + "));
+            p.appendChild(elementLink(r.b));
+            card.appendChild(p);
+            madeFromEl.appendChild(card);
+        });
+    }
+
+    // Combines into
+    const usedInEl = document.getElementById("detail-used-in");
+    usedInEl.innerHTML = "";
+    const usedIn = recipesByElement.get(name) || [];
+    if (usedIn.length === 0) {
+        const p = document.createElement("p");
+        p.className = "empty-note";
+        p.textContent = "This is a dead end — it doesn't combine with anything (yet).";
+        usedInEl.appendChild(p);
+    } else {
+        const card = document.createElement("div");
+        card.className = "tree-card";
+        usedIn
+            .slice()
+            .sort((x, y) => x.result.localeCompare(y.result, undefined, { sensitivity: "base" }))
+            .forEach(r => {
+                const other = r.a === name ? r.b : r.a;
+                const p = document.createElement("p");
+                p.className = "tree-origin";
+                p.appendChild(document.createTextNode("+ "));
+                p.appendChild(elementLink(other));
+                p.appendChild(document.createTextNode(" \u2192 "));
+                p.appendChild(elementLink(r.result));
+                card.appendChild(p);
+            });
+        usedInEl.appendChild(card);
+    }
+
+    // Shortest path
+    const pathEl = document.getElementById("detail-path");
+    pathEl.innerHTML = "";
+    if (BASE_ELEMENTS.includes(name)) {
+        const p = document.createElement("p");
+        p.className = "empty-note";
+        p.textContent = "Already a starting element.";
+        pathEl.appendChild(p);
+    } else if (!tier.has(name)) {
+        const p = document.createElement("p");
+        p.className = "empty-note";
+        p.textContent = "No path exists — this element can't currently be reached.";
+        pathEl.appendChild(p);
+    } else {
+        const steps = buildOrder(name, bestRecipe);
+        steps.forEach((step, i) => {
+            const row = document.createElement("div");
+            row.className = "path-step";
+            const num = document.createElement("span");
+            num.className = "step-num";
+            num.textContent = `${i + 1}.`;
+            row.appendChild(num);
+            const rest = document.createElement("span");
+            rest.appendChild(elementLink(step.a));
+            rest.appendChild(document.createTextNode(" + "));
+            rest.appendChild(elementLink(step.b));
+            rest.appendChild(document.createTextNode(" = "));
+            rest.appendChild(elementLink(step.result));
+            row.appendChild(rest);
+            pathEl.appendChild(row);
+        });
+    }
+
+    window.scrollTo(0, 0);
+}
+
+// ---------- Search ----------
+
+function setupSearch() {
+    const input = document.getElementById("db-search");
+    const results = document.getElementById("search-results");
+
+    input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+        results.innerHTML = "";
+        if (!query) return;
+
+        [...universe]
+            .filter(el => el.toLowerCase().includes(query))
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+            .slice(0, 30)
+            .forEach(el => {
+                const item = document.createElement("button");
+                item.type = "button";
+                item.className = "search-result-item";
+                item.appendChild(document.createTextNode(el));
+
+                const badge = document.createElement("span");
+                badge.className = "tier-badge";
+                const t = tierData.tier;
+                badge.textContent = BASE_ELEMENTS.includes(el)
+                    ? "start"
+                    : t.has(el)
+                    ? `tier ${t.get(el)}`
+                    : "unreachable";
+                item.appendChild(badge);
+
+                item.addEventListener("click", () => {
+                    input.value = "";
+                    results.innerHTML = "";
+                    showElement(el);
+                });
+                results.appendChild(item);
+            });
+    });
+
+    document.addEventListener("click", e => {
+        if (!results.contains(e.target) && e.target !== input) results.innerHTML = "";
+    });
+}
+
+// ---------- Init ----------
+
+function onReady(fn) {
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fn);
+    } else {
+        fn();
+    }
+}
+
+onReady(async () => {
+    document.getElementById("back-to-browse").addEventListener("click", showBrowse);
+    setupSearch();
+
+    window.addEventListener("hashchange", () => {
+        const name = decodeURIComponent(location.hash.slice(1));
+        if (name && universe.has(name)) renderDetail(name);
+        else showBrowse();
+    });
+
+    try {
+        await loadRecipes();
+    } catch (e) {
+        document.getElementById("load-status").textContent = "Could not load recipes.js — try refreshing.";
+        console.error(e);
+        return;
+    }
+
+    tierData = computeTiers();
+    document.getElementById("load-status").hidden = true;
+    renderBrowse();
+
+    const initial = decodeURIComponent(location.hash.slice(1));
+    if (initial && universe.has(initial)) renderDetail(initial);
+});
+
+})();
