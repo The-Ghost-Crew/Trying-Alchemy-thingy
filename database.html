@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Element Database — Alchemy Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink-bg: #14151f;
+    --panel: #1f2130;
+    --panel-raised: #282b3e;
+    --parchment: #ece3cc;
+    --gold: #c9a227;
+    --gold-soft: rgba(201, 162, 39, 0.35);
+    --red: #b5453f;
+    --red-soft: rgba(181, 69, 63, 0.35);
+    --text: #e8e4d8;
+    --text-muted: #8d92a8;
+    --border: #383c52;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink-bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(201,162,39,0.06), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(201,162,39,0.05), transparent 40%);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 64px;
+    overflow-wrap: break-word;
+  }
+
+  header {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 16px 16px;
+    text-align: center;
+  }
+
+  header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 700;
+    font-size: clamp(1.8rem, 5vw, 2.4rem);
+    margin: 0 0 4px;
+    color: var(--parchment);
+  }
+
+  header p { color: var(--text-muted); margin: 0; font-size: 0.92rem; }
+  header a { color: var(--gold); }
+
+  /* Persistent search — visible on both the browse view and any element's
+     detail page, so you can jump straight to a new element without
+     backing out first. */
+  #search-bar {
+    max-width: 720px;
+    margin: 16px auto 0;
+    padding: 0 16px;
+    position: relative;
+  }
+
+  #db-search {
+    width: 100%;
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.95rem;
+  }
+
+  #search-results {
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: calc(100% + 4px);
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    z-index: 10;
+  }
+
+  #search-results:empty { display: none; }
+
+  .search-result-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:hover { background: var(--panel); }
+  .search-result-item .tier-badge { margin-left: auto; }
+
+  main {
+    max-width: 720px;
+    margin: 20px auto 0;
+    padding: 0 16px;
+  }
+
+  .panel-card {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+  }
+
+  .tier-heading {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.35rem;
+    color: var(--parchment);
+    margin: 28px 0 6px;
+  }
+
+  .tier-heading:first-of-type { margin-top: 0; }
+
+  .tier-sub {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin: 0 0 10px;
+  }
+
+  .element-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .element-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
+
+  .element-tile:hover { border-color: var(--gold-soft); }
+  .element-tile img { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .tier-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+  }
+
+  /* ---------- Detail view ---------- */
+
+  #detail-view { display: none; }
+  #detail-view.active { display: block; }
+  #browse-view.hidden { display: none; }
+
+  #back-to-browse {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 4px;
+  }
+
+  .detail-header img { width: 40px; height: 40px; }
+
+  .detail-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.9rem;
+    color: var(--parchment);
+    margin: 0;
+  }
+
+  .detail-meta {
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    margin: 0 0 20px;
+  }
+
+  /* Same visual language as the main game's Family Tree cards. */
+  .tree-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold-soft);
+    border-radius: 6px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .tree-origin {
+    margin: 0 0 6px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .tree-origin:last-child { margin-bottom: 0; }
+  .tree-origin a { color: var(--gold); text-decoration: none; }
+  .tree-origin a:hover { text-decoration: underline; }
+
+  .path-step {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .path-step:last-child { border-bottom: none; }
+  .path-step .step-num { color: var(--gold); flex-shrink: 0; }
+  .path-step a { color: var(--text); text-decoration: none; }
+  .path-step a:hover { color: var(--gold); }
+
+  .empty-note {
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.88rem;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Element Database</h1>
+  <p>Every element, every recipe, every path. <a href="alchemy_index.html">&larr; Back to the game</a></p>
+</header>
+
+<div id="search-bar">
+  <input type="text" id="db-search" placeholder="Search elements…" autocomplete="off">
+  <div id="search-results"></div>
+</div>
+
+<main>
+  <section id="browse-view">
+    <p id="load-status" class="empty-note">Loading recipes.js…</p>
+    <div id="tier-list"></div>
+  </section>
+
+  <section id="detail-view">
+    <button id="back-to-browse" type="button">&larr; All elements</button>
+
+    <div class="detail-header">
+      <img id="detail-icon" src="" alt="" hidden>
+      <h2 id="detail-name"></h2>
+    </div>
+    <p class="detail-meta" id="detail-tier"></p>
+
+    <div class="panel-card">
+      <p class="section-label">Made from</p>
+      <div id="detail-made-from"></div>
+    </div>
+
+    <div class="panel-card">
+      <p class="section-label">Combines into</p>
+      <div id="detail-used-in"></div>
+    </div>
+
+    <div class="panel-card">
+      <p class="section-label">Shortest path</p>
+      <div id="detail-path"></div>
+    </div>
+  </section>
+</main>
+
+<script src="database.js"></script>
+</body>
+</html>
