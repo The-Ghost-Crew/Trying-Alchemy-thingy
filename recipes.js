@@ -3,6 +3,7 @@ recipe("Poland", "element", "polonium");
 recipe("box", "shape", "cube");
 recipe("horizontal", "math", "X-axis");
 recipe("column", "math", "Y-axis");
+
 recipe("corpse", "earth", "grave");
 recipe("X-axis", "Y-axis", "coordinate plane");
 recipe("coordinate plane", "math", "Cartesian coordinate system");
