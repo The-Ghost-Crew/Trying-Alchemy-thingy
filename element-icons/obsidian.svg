@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <circle cx="50" cy="50" r="46" fill="#14151f" stroke="#5a4f78" stroke-width="4"/>
+
+  <defs>
+    <linearGradient id="obsidianGrad" x1="50" y1="18" x2="50" y2="82" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5a4f78"/>
+      <stop offset="100%" stop-color="#241f30"/>
+    </linearGradient>
+  </defs>
+
+  <!-- glassy shard, symmetric knapped-blade silhouette -->
+  <path d="M 50,18 L 60,38 L 56,50 L 60,66 L 50,82 L 40,66 L 44,50 L 40,38 Z" fill="url(#obsidianGrad)"/>
+</svg>
