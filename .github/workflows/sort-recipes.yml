@@ -1,0 +1,28 @@
+name: Sort recipes.js
+
+on:
+  push:
+    paths:
+      - "recipes.js"
+
+permissions:
+  contents: write
+
+jobs:
+  sort:
+    runs-on: ubuntu-latest
+    # Without this, the auto-commit below would itself trigger this same
+    # workflow again (it also touches recipes.js), forever. This checks
+    # who pushed the triggering commit and skips if it was the bot itself.
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Sort recipes.js alphabetically
+        run: node .github/scripts/sort-recipes.js
+
+      - name: Commit sorted file, if anything changed
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "Auto-sort recipes.js alphabetically"
+          file_pattern: recipes.js
