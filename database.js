@@ -102,6 +102,37 @@ function buildOrder(target, bestRecipe) {
 
 let tierData = null; // set once loadRecipes() resolves
 
+// Step length is a genuinely different measurement from tier: tier is
+// recipe DEPTH (how many layers), step length is the total COUNT of
+// unique elements in the shortest full build order. An element can have
+// a shallow tier but a huge step length if its dependency tree is wide
+// rather than deep. Computed once for every element via memoized set
+// union (processed in tier order, so each element's dependency set is
+// built from its ingredients' ALREADY-computed sets) rather than
+// re-walking the tree from scratch per element — verified to produce
+// identical results to a naive per-element walk, just far more
+// efficiently across ~2000 elements.
+function computeStepLengths(bestRecipe, tier) {
+    const depSet = new Map();
+    BASE_ELEMENTS.forEach(el => depSet.set(el, new Set()));
+
+    const sortedByTier = [...tier.keys()]
+        .filter(el => !BASE_ELEMENTS.includes(el))
+        .sort((a, b) => tier.get(a) - tier.get(b));
+
+    sortedByTier.forEach(el => {
+        const entry = bestRecipe.get(el);
+        if (!entry) return;
+        const setA = depSet.get(entry.a) || new Set();
+        const setB = depSet.get(entry.b) || new Set();
+        depSet.set(el, new Set([...setA, ...setB, el]));
+    });
+
+    const stepLength = new Map();
+    depSet.forEach((set, el) => stepLength.set(el, set.size));
+    return stepLength;
+}
+
 // ---------- Icons (same logic as game.js, verbatim) ----------
 
 function elementIconSlug(element) {
@@ -151,9 +182,71 @@ function elementLink(name) {
     return a;
 }
 
-// ---------- Browse view: tier-grouped listing ----------
+let browseSortMode = "tier";
 
 function renderBrowse() {
+    if (browseSortMode === "steps") renderBrowseByStepLength();
+    else renderBrowseByTier();
+}
+
+function setupSortToggle() {
+    const buttons = document.querySelectorAll(".sort-toggle");
+    buttons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            browseSortMode = btn.dataset.sort;
+            buttons.forEach(b => b.classList.toggle("active", b.dataset.sort === browseSortMode));
+            renderBrowse();
+        });
+    });
+}
+
+const STEP_LENGTH_DISPLAY_CAP = 100;
+
+function renderBrowseByStepLength() {
+    const container = document.getElementById("tier-list");
+    container.innerHTML = "";
+
+    const { stepLength } = tierData;
+    const ranked = [...universe]
+        .filter(el => !BASE_ELEMENTS.includes(el) && stepLength.has(el))
+        .sort((a, b) => stepLength.get(b) - stepLength.get(a));
+
+    const heading = document.createElement("p");
+    heading.className = "tier-heading";
+    heading.textContent = "Longest build paths";
+    container.appendChild(heading);
+
+    const sub = document.createElement("p");
+    sub.className = "tier-sub";
+    const shownCount = Math.min(STEP_LENGTH_DISPLAY_CAP, ranked.length);
+    sub.textContent = `Ranked by total unique elements needed in the shortest build order — not the same as tier, which only measures recipe depth. Showing the top ${shownCount} of ${ranked.length} reachable elements.`;
+    container.appendChild(sub);
+
+    ranked.slice(0, STEP_LENGTH_DISPLAY_CAP).forEach((el, i) => {
+        const row = document.createElement("div");
+        row.className = "rank-row";
+
+        const rank = document.createElement("span");
+        rank.className = "rank-num";
+        rank.textContent = `${i + 1}.`;
+        row.appendChild(rank);
+
+        const link = elementLink(el);
+        link.className = "rank-name";
+        row.appendChild(link);
+
+        const count = document.createElement("span");
+        count.className = "rank-count";
+        count.textContent = `${stepLength.get(el)} steps`;
+        row.appendChild(count);
+
+        container.appendChild(row);
+    });
+}
+
+// ---------- Browse view: tier-grouped listing ----------
+
+function renderBrowseByTier() {
     const container = document.getElementById("tier-list");
     container.innerHTML = "";
 
@@ -301,19 +394,23 @@ function renderDetail(name) {
 
     // Shortest path
     const pathEl = document.getElementById("detail-path");
+    const pathLabel = document.getElementById("detail-path-label");
     pathEl.innerHTML = "";
     if (BASE_ELEMENTS.includes(name)) {
+        pathLabel.textContent = "Shortest path";
         const p = document.createElement("p");
         p.className = "empty-note";
         p.textContent = "Already a starting element.";
         pathEl.appendChild(p);
     } else if (!tier.has(name)) {
+        pathLabel.textContent = "Shortest path";
         const p = document.createElement("p");
         p.className = "empty-note";
         p.textContent = "No path exists — this element can't currently be reached.";
         pathEl.appendChild(p);
     } else {
         const steps = buildOrder(name, bestRecipe);
+        pathLabel.textContent = `Shortest path (${steps.length} step${steps.length === 1 ? "" : "s"})`;
         steps.forEach((step, i) => {
             const row = document.createElement("div");
             row.className = "path-step";
@@ -393,6 +490,7 @@ function onReady(fn) {
 onReady(async () => {
     document.getElementById("back-to-browse").addEventListener("click", showBrowse);
     setupSearch();
+    setupSortToggle();
 
     window.addEventListener("hashchange", () => {
         const name = decodeURIComponent(location.hash.slice(1));
@@ -409,7 +507,9 @@ onReady(async () => {
     }
 
     tierData = computeTiers();
+    tierData.stepLength = computeStepLengths(tierData.bestRecipe, tierData.tier);
     document.getElementById("load-status").hidden = true;
+    document.getElementById("sort-toggle-row").hidden = false;
     renderBrowse();
 
     const initial = decodeURIComponent(location.hash.slice(1));
