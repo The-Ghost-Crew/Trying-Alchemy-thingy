@@ -132,7 +132,12 @@ async function lookupNames(hexes) {
     const url = NAME_API + "?values=" + cleaned.join(",");
 
     try {
-        const res = await fetch(url);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (!res.ok) throw new Error("API error " + res.status);
         const data = await res.json();
 
@@ -146,14 +151,17 @@ async function lookupNames(hexes) {
         return map;
     } catch (err) {
         console.error("Color name lookup failed:", err);
-        return null;
+        if (err.name === "AbortError") {
+            return { __error: "timed out reaching the naming API" };
+        }
+        return { __error: "couldn't reach the naming API" };
     }
 }
 
 function renderNameInto(elementId, hex, nameMap) {
     const el = document.getElementById(elementId);
-    if (!nameMap) {
-        el.textContent = "(couldn't reach the naming API)";
+    if (!nameMap || nameMap.__error) {
+        el.textContent = "(" + (nameMap ? nameMap.__error : "couldn't reach the naming API") + ")";
         return;
     }
     const entry = nameMap[hex.toUpperCase()];
