@@ -92,6 +92,7 @@ button {
 
 <div id="result"></div>
 <div id="resultName"></div>
+<button onclick="useResultAsColor1()">Use Result as Color 1</button>
 
 <script>
 const NAME_API = "https://api.color.pizza/v1/";
@@ -167,6 +168,18 @@ function renderNameInto(elementId, hex, nameMap) {
     }
 }
 
+let lastMixedHex = null;
+
+function useResultAsColor1() {
+    if (!lastMixedHex) {
+        alert("Mix two colors first.");
+        return;
+    }
+    document.getElementById("color1").value = lastMixedHex;
+    updateMiniSwatches();
+    document.getElementById("name1").textContent = document.getElementById("resultName").textContent;
+}
+
 async function mix() {
     const color1Val = document.getElementById("color1").value;
     const color2Val = document.getElementById("color2").value;
@@ -186,6 +199,7 @@ async function mix() {
     const b = Math.round((c1.b + c2.b) / 2);
 
     const mixed = rgbToHex(r, g, b).toUpperCase();
+    lastMixedHex = mixed;
 
     document.getElementById("preview").style.background = mixed;
     document.getElementById("result").textContent = mixed;
