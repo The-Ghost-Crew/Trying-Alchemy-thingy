@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hex Color Mixer</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    max-width: 500px;
+    margin: 40px auto;
+    text-align: center;
+}
+
+input {
+    width: 120px;
+    font-size: 18px;
+    padding: 6px;
+    text-transform: uppercase;
+}
+
+button {
+    font-size: 18px;
+    padding: 6px 14px;
+    margin-top: 12px;
+    cursor: pointer;
+}
+
+#preview {
+    width: 150px;
+    height: 150px;
+    margin: 20px auto;
+    border: 1px solid #000;
+}
+
+#result {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 10px;
+}
+</style>
+</head>
+<body>
+
+<h2>Hex Color Mixer</h2>
+
+<p>Color 1</p>
+<input id="color1" value="#FFFFFF">
+
+<p>Color 2</p>
+<input id="color2" value="#000000">
+
+<br>
+<button onclick="mix()">Mix</button>
+
+<div id="preview"></div>
+
+<div id="result"></div>
+
+<script>
+function hexToRgb(hex) {
+    hex = hex.replace("#", "");
+
+    if (hex.length !== 6) {
+        return null;
+    }
+
+    return {
+        r: parseInt(hex.substring(0, 2), 16),
+        g: parseInt(hex.substring(2, 4), 16),
+        b: parseInt(hex.substring(4, 6), 16)
+    };
+}
+
+function rgbToHex(r, g, b) {
+    return "#" +
+        r.toString(16).padStart(2, "0") +
+        g.toString(16).padStart(2, "0") +
+        b.toString(16).padStart(2, "0");
+}
+
+function mix() {
+    const c1 = hexToRgb(document.getElementById("color1").value);
+    const c2 = hexToRgb(document.getElementById("color2").value);
+
+    if (!c1 || !c2) {
+        alert("Please enter valid 6-digit hex colors.");
+        return;
+    }
+
+    const r = Math.round((c1.r + c2.r) / 2);
+    const g = Math.round((c1.g + c2.g) / 2);
+    const b = Math.round((c1.b + c2.b) / 2);
+
+    const mixed = rgbToHex(r, g, b).toUpperCase();
+
+    document.getElementById("preview").style.background = mixed;
+    document.getElementById("result").textContent = mixed;
+}
+</script>
+
+</body>
+</html>
