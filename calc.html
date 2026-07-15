@@ -152,16 +152,16 @@ async function lookupNames(hexes) {
     } catch (err) {
         console.error("Color name lookup failed:", err);
         if (err.name === "AbortError") {
-            return { __error: "timed out reaching the naming API" };
+            return { __error: "timed out after 6s reaching api.color.pizza" };
         }
-        return { __error: "couldn't reach the naming API" };
+        return { __error: "fetch failed: " + (err.name || "Error") + " - " + (err.message || "no message") };
     }
 }
 
 function renderNameInto(elementId, hex, nameMap) {
     const el = document.getElementById(elementId);
     if (!nameMap || nameMap.__error) {
-        el.textContent = "(" + (nameMap ? nameMap.__error : "couldn't reach the naming API") + ")";
+        el.textContent = "(" + (nameMap ? nameMap.__error : "no response from naming API") + ")";
         return;
     }
     const entry = nameMap[hex.toUpperCase()];
