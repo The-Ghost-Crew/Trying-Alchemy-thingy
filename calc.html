@@ -25,6 +25,21 @@ button {
     cursor: pointer;
 }
 
+.swatch-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.mini-swatch {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #000;
+    display: inline-block;
+    vertical-align: middle;
+}
+
 #preview {
     width: 150px;
     height: 150px;
@@ -37,6 +52,25 @@ button {
     font-weight: bold;
     margin-top: 10px;
 }
+
+hr {
+    margin: 40px 0;
+}
+
+.combo-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 6px 0;
+    font-size: 15px;
+}
+
+#comboMeta {
+    font-size: 13px;
+    color: #555;
+    margin-top: 10px;
+}
 </style>
 </head>
 <body>
@@ -44,10 +78,16 @@ button {
 <h2>Hex Color Mixer</h2>
 
 <p>Color 1</p>
-<input id="color1" value="#FFFFFF">
+<div class="swatch-row">
+    <span id="swatch1" class="mini-swatch"></span>
+    <input id="color1" value="#FFFFFF" oninput="updateMiniSwatches()">
+</div>
 
 <p>Color 2</p>
-<input id="color2" value="#000000">
+<div class="swatch-row">
+    <span id="swatch2" class="mini-swatch"></span>
+    <input id="color2" value="#000000" oninput="updateMiniSwatches()">
+</div>
 
 <br>
 <button onclick="mix()">Mix</button>
@@ -57,14 +97,25 @@ button {
 <div id="result"></div>
 <button onclick="useResultAsColor1()">Use Result as Color 1</button>
 
+<hr>
+
+<h3>Find Combinations for a Color</h3>
+<p>Target color</p>
+<div class="swatch-row">
+    <span id="targetSwatch" class="mini-swatch"></span>
+    <input id="targetColor" value="#808080" oninput="updateMiniSwatches()">
+</div>
+<br>
+<button onclick="findCombos()">Find Combinations</button>
+
+<div id="comboList"></div>
+<button id="seeMoreBtn" onclick="showMoreCombos()" style="display:none">See 10 More</button>
+<div id="comboMeta"></div>
+
 <script>
 function hexToRgb(hex) {
     hex = hex.replace("#", "");
-
-    if (hex.length !== 6) {
-        return null;
-    }
-
+    if (hex.length !== 6) return null;
     return {
         r: parseInt(hex.substring(0, 2), 16),
         g: parseInt(hex.substring(2, 4), 16),
@@ -79,6 +130,15 @@ function rgbToHex(r, g, b) {
         b.toString(16).padStart(2, "0");
 }
 
+function updateMiniSwatches() {
+    const c1 = document.getElementById("color1").value;
+    const c2 = document.getElementById("color2").value;
+    const ct = document.getElementById("targetColor").value;
+    if (hexToRgb(c1)) document.getElementById("swatch1").style.background = c1;
+    if (hexToRgb(c2)) document.getElementById("swatch2").style.background = c2;
+    if (hexToRgb(ct)) document.getElementById("targetSwatch").style.background = ct;
+}
+
 let lastMixedHex = null;
 
 function useResultAsColor1() {
@@ -87,6 +147,7 @@ function useResultAsColor1() {
         return;
     }
     document.getElementById("color1").value = lastMixedHex;
+    updateMiniSwatches();
 }
 
 function mix() {
@@ -108,6 +169,116 @@ function mix() {
     document.getElementById("preview").style.background = mixed;
     document.getElementById("result").textContent = mixed;
 }
+
+// ---- Combination finder ----
+// For a target channel value t, find every (a,b) pair (0-255, a<=b) where
+// Math.round((a+b)/2) === t. Sorted descending by delta (b-a) so the most
+// visually distinct pairs come first.
+function getChannelPairs(t) {
+    const pairs = [];
+    for (let a = 0; a <= t; a++) {
+        const b = 2 * t - a;
+        if (b >= a && b <= 255) pairs.push({ a, b, delta: b - a });
+    }
+    for (let a = 0; a <= t - 1; a++) {
+        const b = 2 * t - 1 - a;
+        if (b >= a && b <= 255 && b !== 2 * t - a) pairs.push({ a, b, delta: b - a });
+    }
+    pairs.sort((x, y) => y.delta - x.delta);
+    return pairs;
+}
+
+let allCombos = [];
+let shownCount = 0;
+
+function findCombos() {
+    const t = hexToRgb(document.getElementById("targetColor").value);
+    if (!t) {
+        alert("Please enter a valid 6-digit hex color.");
+        return;
+    }
+
+    const rPairs = getChannelPairs(t.r).slice(0, 50);
+    const gPairs = getChannelPairs(t.g).slice(0, 50);
+    const bPairs = getChannelPairs(t.b).slice(0, 50);
+
+    // Score every candidate triple by total spread (sum of channel deltas).
+    const triples = [];
+    for (const rp of rPairs) {
+        for (const gp of gPairs) {
+            for (const bp of bPairs) {
+                triples.push({ rp, gp, bp, spread: rp.delta + gp.delta + bp.delta });
+            }
+        }
+    }
+    triples.sort((x, y) => y.spread - x.spread);
+
+    // Expand top triples into actual color-pair combos (there are up to 8
+    // channel-assignment variants per triple; dedupe swapped pairs).
+    const seen = new Set();
+    const results = [];
+    const CAP = 300;
+
+    for (const tri of triples) {
+        if (results.length >= CAP) break;
+        const rOpts = tri.rp.a === tri.rp.b ? [[tri.rp.a, tri.rp.b]] : [[tri.rp.a, tri.rp.b], [tri.rp.b, tri.rp.a]];
+        const gOpts = tri.gp.a === tri.gp.b ? [[tri.gp.a, tri.gp.b]] : [[tri.gp.a, tri.gp.b], [tri.gp.b, tri.gp.a]];
+        const bOpts = tri.bp.a === tri.bp.b ? [[tri.bp.a, tri.bp.b]] : [[tri.bp.a, tri.bp.b], [tri.bp.b, tri.bp.a]];
+
+        for (const [r1, r2] of rOpts) {
+            for (const [g1, g2] of gOpts) {
+                for (const [b1, b2] of bOpts) {
+                    let hex1 = rgbToHex(r1, g1, b1).toUpperCase();
+                    let hex2 = rgbToHex(r2, g2, b2).toUpperCase();
+                    if (hex1 > hex2) [hex1, hex2] = [hex2, hex1];
+                    const key = hex1 + "_" + hex2;
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    results.push({ hex1, hex2, spread: tri.spread });
+                    if (results.length >= CAP) break;
+                }
+                if (results.length >= CAP) break;
+            }
+            if (results.length >= CAP) break;
+        }
+    }
+
+    results.sort((x, y) => y.spread - x.spread);
+
+    allCombos = results;
+    shownCount = 0;
+    document.getElementById("comboList").innerHTML = "";
+    showMoreCombos();
+}
+
+function showMoreCombos() {
+    const list = document.getElementById("comboList");
+    const next = allCombos.slice(shownCount, shownCount + 10);
+
+    next.forEach(c => {
+        const row = document.createElement("div");
+        row.className = "combo-row";
+        row.innerHTML =
+            '<span class="mini-swatch" style="background:' + c.hex1 + '"></span>' +
+            '<span>' + c.hex1 + ' + ' + c.hex2 + '</span>' +
+            '<span class="mini-swatch" style="background:' + c.hex2 + '"></span>';
+        list.appendChild(row);
+    });
+
+    shownCount += next.length;
+
+    const meta = document.getElementById("comboMeta");
+    const seeMoreBtn = document.getElementById("seeMoreBtn");
+    if (shownCount >= allCombos.length) {
+        seeMoreBtn.style.display = "none";
+        meta.textContent = "Showing all " + allCombos.length + " (capped at 300 by spread — the true total for most colors is in the millions).";
+    } else {
+        seeMoreBtn.style.display = "inline-block";
+        meta.textContent = "Showing " + shownCount + " of " + allCombos.length + " (capped at 300 by spread — the true total for most colors is in the millions).";
+    }
+}
+
+updateMiniSwatches();
 </script>
 
 </body>
