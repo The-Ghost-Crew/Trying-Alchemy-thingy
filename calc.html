@@ -71,6 +71,28 @@ hr {
     color: #555;
     margin-top: 10px;
 }
+
+.color-chip-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 4px 0;
+    font-size: 15px;
+}
+
+.color-chip-row button {
+    font-size: 13px;
+    padding: 2px 8px;
+    margin-top: 0;
+}
+
+#pathStatus {
+    font-size: 14px;
+    color: #333;
+    margin-top: 10px;
+    white-space: pre-line;
+}
 </style>
 </head>
 <body>
@@ -112,6 +134,38 @@ hr {
 <button id="seeMoreBtn" onclick="showMoreCombos()" style="display:none">See 10 More</button>
 <div id="comboMeta"></div>
 
+<hr>
+
+<h3>Path to a Color</h3>
+
+<p>Starting colors</p>
+<div id="defaultColorList"></div>
+
+<p>Added starting colors</p>
+<div id="addedColorList"></div>
+<div class="swatch-row">
+    <input id="newStartColorInput" placeholder="#RRGGBB">
+    <button onclick="addStartColor()">Add</button>
+</div>
+
+<p>Force through (optional)</p>
+<div id="forcedColorList"></div>
+<div class="swatch-row">
+    <input id="newForcedColorInput" placeholder="#RRGGBB">
+    <button onclick="addForcedColor()">Add</button>
+</div>
+
+<p>Target color</p>
+<div class="swatch-row">
+    <span id="pathTargetSwatch" class="mini-swatch"></span>
+    <input id="pathTargetColor" value="#336699" oninput="updateMiniSwatches()">
+</div>
+<br>
+<button onclick="findColorPath()">Find Path</button>
+
+<div id="pathStatus"></div>
+<div id="pathSteps"></div>
+
 <script>
 function hexToRgb(hex) {
     hex = hex.replace("#", "");
@@ -134,9 +188,11 @@ function updateMiniSwatches() {
     const c1 = document.getElementById("color1").value;
     const c2 = document.getElementById("color2").value;
     const ct = document.getElementById("targetColor").value;
+    const pt = document.getElementById("pathTargetColor").value;
     if (hexToRgb(c1)) document.getElementById("swatch1").style.background = c1;
     if (hexToRgb(c2)) document.getElementById("swatch2").style.background = c2;
     if (hexToRgb(ct)) document.getElementById("targetSwatch").style.background = ct;
+    if (hexToRgb(pt)) document.getElementById("pathTargetSwatch").style.background = pt;
 }
 
 let lastMixedHex = null;
@@ -278,6 +334,248 @@ function showMoreCombos() {
     }
 }
 
+// ---- Path to a Color ----
+const defaultColors = [
+    { name: "White", hex: "#FFFFFF", enabled: true },
+    { name: "Black", hex: "#000000", enabled: true },
+    { name: "Grey",  hex: "#808080", enabled: true },
+    { name: "Red",   hex: "#FF0000", enabled: true },
+    { name: "Orange",hex: "#FFA500", enabled: true },
+    { name: "Yellow",hex: "#FFFF00", enabled: true },
+    { name: "Green", hex: "#00FF00", enabled: true },
+    { name: "Blue",  hex: "#0000FF", enabled: true }
+];
+let addedStartColors = [];
+let forcedColors = [];
+
+function renderDefaultColorList() {
+    const el = document.getElementById("defaultColorList");
+    el.innerHTML = "";
+    defaultColors.forEach((c, i) => {
+        const row = document.createElement("div");
+        row.className = "color-chip-row";
+        const checkboxId = "defColor" + i;
+        row.innerHTML =
+            '<input type="checkbox" id="' + checkboxId + '" ' + (c.enabled ? "checked" : "") + '>' +
+            '<span class="mini-swatch" style="background:' + c.hex + '"></span>' +
+            '<span>' + c.name + ' (' + c.hex + ')</span>';
+        el.appendChild(row);
+        document.getElementById(checkboxId).addEventListener("change", (e) => {
+            defaultColors[i].enabled = e.target.checked;
+        });
+    });
+}
+
+function renderAddedColorList() {
+    const el = document.getElementById("addedColorList");
+    el.innerHTML = "";
+    addedStartColors.forEach((hex, i) => {
+        const row = document.createElement("div");
+        row.className = "color-chip-row";
+        row.innerHTML =
+            '<span class="mini-swatch" style="background:' + hex + '"></span>' +
+            '<span>' + hex + '</span>' +
+            '<button onclick="removeStartColor(' + i + ')">Remove</button>';
+        el.appendChild(row);
+    });
+}
+
+function addStartColor() {
+    const input = document.getElementById("newStartColorInput");
+    const hex = input.value.trim().toUpperCase();
+    if (!hexToRgb(hex)) {
+        alert("Please enter a valid 6-digit hex color.");
+        return;
+    }
+    addedStartColors.push(hex);
+    input.value = "";
+    renderAddedColorList();
+}
+
+function removeStartColor(i) {
+    addedStartColors.splice(i, 1);
+    renderAddedColorList();
+}
+
+function renderForcedColorList() {
+    const el = document.getElementById("forcedColorList");
+    el.innerHTML = "";
+    forcedColors.forEach((hex, i) => {
+        const row = document.createElement("div");
+        row.className = "color-chip-row";
+        row.innerHTML =
+            '<span class="mini-swatch" style="background:' + hex + '"></span>' +
+            '<span>' + hex + '</span>' +
+            '<button onclick="removeForcedColor(' + i + ')">Remove</button>';
+        el.appendChild(row);
+    });
+}
+
+function addForcedColor() {
+    const input = document.getElementById("newForcedColorInput");
+    const hex = input.value.trim().toUpperCase();
+    if (!hexToRgb(hex)) {
+        alert("Please enter a valid 6-digit hex color.");
+        return;
+    }
+    forcedColors.push(hex);
+    input.value = "";
+    renderForcedColorList();
+}
+
+function removeForcedColor(i) {
+    forcedColors.splice(i, 1);
+    renderForcedColorList();
+}
+
+function colorDistance(hexA, hexB) {
+    const a = hexToRgb(hexA), b = hexToRgb(hexB);
+    return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+}
+
+// Exhaustive, exact frontier BFS (no sampling — sampling can't reliably hit
+// exact targets). Runs generation by generation; caller decides when to stop.
+function runBfsGenerations(pool, frontier, generationsToRun) {
+    let gen = frontier.length ? (pool.get(frontier[0]).gen) : 0;
+    for (let i = 0; i < generationsToRun; i++) {
+        if (frontier.length === 0) break;
+        const poolKeys = [...pool.keys()];
+        const newFrontier = [];
+        for (const a of frontier) {
+            for (const b of poolKeys) {
+                const m = mixHexPair(a, b);
+                if (!pool.has(m)) {
+                    pool.set(m, { gen: gen + 1, pa: a, pb: b });
+                    newFrontier.push(m);
+                }
+            }
+        }
+        gen++;
+        frontier = newFrontier;
+    }
+    return frontier;
+}
+
+function mixHexPair(h1, h2) {
+    const a = hexToRgb(h1), b = hexToRgb(h2);
+    return rgbToHex(Math.round((a.r + b.r) / 2), Math.round((a.g + b.g) / 2), Math.round((a.b + b.b) / 2)).toUpperCase();
+}
+
+function findClosest(pool, targetHex) {
+    let best = null, bestDist = Infinity;
+    for (const hex of pool.keys()) {
+        const d = colorDistance(hex, targetHex);
+        if (d < bestDist) { bestDist = d; best = hex; }
+    }
+    return { hex: best, dist: bestDist };
+}
+
+// Trace a color's ancestry back to start colors (gen 0), collecting every
+// unique intermediate build step. Steps from multiple calls can be merged
+// (pass in a shared `stepsMap` and `order` array) so shared ancestors are
+// only listed once.
+function collectSteps(pool, hex, stepsMap, order) {
+    const entry = pool.get(hex);
+    if (!entry || entry.pa === null) return; // start color, nothing to build
+    if (stepsMap.has(hex)) return; // already collected
+    collectSteps(pool, entry.pa, stepsMap, order);
+    collectSteps(pool, entry.pb, stepsMap, order);
+    stepsMap.set(hex, entry);
+    order.push(hex);
+}
+
+function findColorPath() {
+    const targetHex = document.getElementById("pathTargetColor").value.trim().toUpperCase();
+    if (!hexToRgb(targetHex)) {
+        alert("Please enter a valid 6-digit hex color for the target.");
+        return;
+    }
+
+    const startSet = [
+        ...defaultColors.filter(c => c.enabled).map(c => c.hex),
+        ...addedStartColors
+    ];
+    if (startSet.length < 2) {
+        alert("Select or add at least 2 starting colors.");
+        return;
+    }
+
+    const statusEl = document.getElementById("pathStatus");
+    const stepsEl = document.getElementById("pathSteps");
+    statusEl.textContent = "Searching…";
+    stepsEl.innerHTML = "";
+
+    // Let the browser paint the "Searching…" message before the heavy work.
+    setTimeout(() => {
+        const pool = new Map();
+        startSet.forEach(hex => pool.set(hex, { gen: 0, pa: null, pb: null }));
+        let frontier = [...pool.keys()];
+
+        // Fast pass (generation 3) — usually a few hundred ms.
+        frontier = runBfsGenerations(pool, frontier, 3);
+        let best = findClosest(pool, targetHex);
+
+        // If not a close enough match yet and the search hasn't converged,
+        // spend one more (slower) generation trying to do better.
+        const GOOD_ENOUGH_DIST = 10;
+        if (best.dist > GOOD_ENOUGH_DIST && frontier.length > 0) {
+            frontier = runBfsGenerations(pool, frontier, 1);
+            const better = findClosest(pool, targetHex);
+            if (better.dist < best.dist) best = better;
+        }
+
+        // Which forced colors actually got discovered in the pool?
+        const foundForced = forcedColors.filter(h => pool.has(h));
+        const missingForced = forcedColors.filter(h => !pool.has(h));
+
+        // Build the combined step list: the best match, plus any forced
+        // colors that were found (shared ancestors only listed once).
+        const stepsMap = new Map();
+        const order = [];
+        foundForced.forEach(h => collectSteps(pool, h, stepsMap, order));
+        collectSteps(pool, best.hex, stepsMap, order);
+
+        // Render status
+        let statusLines = [];
+        if (best.dist === 0) {
+            statusLines.push("Exact match found: " + best.hex);
+        } else {
+            const a = hexToRgb(best.hex), t = hexToRgb(targetHex);
+            statusLines.push("Closest reachable color: " + best.hex +
+                " (off by R:" + Math.abs(a.r - t.r) + " G:" + Math.abs(a.g - t.g) + " B:" + Math.abs(a.b - t.b) + ")");
+            if (best.dist > 40) {
+                statusLines.push("That's a fairly rough match — try adding more (and more varied) starting colors for something closer.");
+            }
+        }
+        if (forcedColors.length > 0) {
+            if (foundForced.length > 0) statusLines.push("Forced colors reached: " + foundForced.join(", "));
+            if (missingForced.length > 0) statusLines.push("Forced colors not reached within the search budget: " + missingForced.join(", ") + " — try adding more starting colors, or deselect them.");
+        }
+        statusEl.textContent = statusLines.join("\n");
+
+        // Render steps
+        order.forEach((hex, i) => {
+            const entry = stepsMap.get(hex);
+            const row = document.createElement("div");
+            row.className = "combo-row";
+            row.innerHTML =
+                "Step " + (i + 1) + ": " +
+                '<span class="mini-swatch" style="background:' + entry.pa + '"></span>' + entry.pa + " + " +
+                '<span class="mini-swatch" style="background:' + entry.pb + '"></span>' + entry.pb + " = " +
+                '<span class="mini-swatch" style="background:' + hex + '"></span>' + hex;
+            stepsEl.appendChild(row);
+        });
+        if (order.length === 0) {
+            const p = document.createElement("div");
+            p.textContent = best.dist === 0 ? "(already one of your starting colors — no mixing needed)" : "";
+            stepsEl.appendChild(p);
+        }
+    }, 10);
+}
+
+renderDefaultColorList();
+renderAddedColorList();
+renderForcedColorList();
 updateMiniSwatches();
 </script>
 
