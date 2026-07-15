@@ -25,6 +25,27 @@ button {
     cursor: pointer;
 }
 
+.swatch-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.mini-swatch {
+    width: 24px;
+    height: 24px;
+    border: 1px solid #000;
+    display: inline-block;
+}
+
+.name-label {
+    font-size: 14px;
+    color: #333;
+    min-height: 18px;
+    max-width: 280px;
+}
+
 #preview {
     width: 150px;
     height: 150px;
@@ -37,6 +58,13 @@ button {
     font-weight: bold;
     margin-top: 10px;
 }
+
+#resultName {
+    font-size: 15px;
+    color: #333;
+    margin-top: 4px;
+    min-height: 18px;
+}
 </style>
 </head>
 <body>
@@ -44,10 +72,18 @@ button {
 <h2>Hex Color Mixer</h2>
 
 <p>Color 1</p>
-<input id="color1" value="#FFFFFF">
+<div class="swatch-row">
+    <span id="swatch1" class="mini-swatch"></span>
+    <input id="color1" value="#FFFFFF">
+</div>
+<div id="name1" class="name-label"></div>
 
 <p>Color 2</p>
-<input id="color2" value="#000000">
+<div class="swatch-row">
+    <span id="swatch2" class="mini-swatch"></span>
+    <input id="color2" value="#000000">
+</div>
+<div id="name2" class="name-label"></div>
 
 <br>
 <button onclick="mix()">Mix</button>
@@ -55,8 +91,12 @@ button {
 <div id="preview"></div>
 
 <div id="result"></div>
+<div id="resultName"></div>
 
 <script>
+const NAME_API = "https://api.color.pizza/v1/";
+const UNNAMED_MESSAGE = "The colorologists from the United States and United Kingdom has yet to name this hex.";
+
 function hexToRgb(hex) {
     hex = hex.replace("#", "");
 
@@ -78,14 +118,68 @@ function rgbToHex(r, g, b) {
         b.toString(16).padStart(2, "0");
 }
 
-function mix() {
-    const c1 = hexToRgb(document.getElementById("color1").value);
-    const c2 = hexToRgb(document.getElementById("color2").value);
+function updateMiniSwatches() {
+    const c1 = document.getElementById("color1").value;
+    const c2 = document.getElementById("color2").value;
+    if (hexToRgb(c1)) document.getElementById("swatch1").style.background = c1;
+    if (hexToRgb(c2)) document.getElementById("swatch2").style.background = c2;
+}
+
+async function lookupNames(hexes) {
+    // hexes: array of hex strings (with #). Returns map of UPPERCASE hex -> {name, distance} or null on failure.
+    const cleaned = hexes.map(h => h.replace("#", ""));
+    const url = NAME_API + "?values=" + cleaned.join(",");
+
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("API error " + res.status);
+        const data = await res.json();
+
+        const map = {};
+        data.colors.forEach(c => {
+            map[("#" + c.requestedHex).toUpperCase()] = {
+                name: c.name,
+                distance: c.distance
+            };
+        });
+        return map;
+    } catch (err) {
+        console.error("Color name lookup failed:", err);
+        return null;
+    }
+}
+
+function renderNameInto(elementId, hex, nameMap) {
+    const el = document.getElementById(elementId);
+    if (!nameMap) {
+        el.textContent = "(couldn't reach the naming API)";
+        return;
+    }
+    const entry = nameMap[hex.toUpperCase()];
+    if (!entry) {
+        el.textContent = "";
+        return;
+    }
+    if (entry.distance === 0) {
+        el.textContent = entry.name;
+    } else {
+        el.textContent = UNNAMED_MESSAGE;
+    }
+}
+
+async function mix() {
+    const color1Val = document.getElementById("color1").value;
+    const color2Val = document.getElementById("color2").value;
+
+    const c1 = hexToRgb(color1Val);
+    const c2 = hexToRgb(color2Val);
 
     if (!c1 || !c2) {
         alert("Please enter valid 6-digit hex colors.");
         return;
     }
+
+    updateMiniSwatches();
 
     const r = Math.round((c1.r + c2.r) / 2);
     const g = Math.round((c1.g + c2.g) / 2);
@@ -95,7 +189,19 @@ function mix() {
 
     document.getElementById("preview").style.background = mixed;
     document.getElementById("result").textContent = mixed;
+
+    document.getElementById("name1").textContent = "looking up name…";
+    document.getElementById("name2").textContent = "looking up name…";
+    document.getElementById("resultName").textContent = "looking up name…";
+
+    const nameMap = await lookupNames([color1Val, color2Val, mixed]);
+
+    renderNameInto("name1", color1Val, nameMap);
+    renderNameInto("name2", color2Val, nameMap);
+    renderNameInto("resultName", mixed, nameMap);
 }
+
+updateMiniSwatches();
 </script>
 
 </body>
