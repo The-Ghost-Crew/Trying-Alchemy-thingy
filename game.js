@@ -139,6 +139,7 @@ function resetRecipeData() {
     recipesByElement.clear();
     universe.clear();
     BASE_ELEMENTS.forEach(el => universe.add(el));
+    conflictingRecipes.length = 0;
 }
 
 let usedPrefetch = false;
@@ -325,6 +326,34 @@ function renderCaseCollisionReport() {
     container.appendChild(list);
 }
 
+function renderConflictingRecipesReport() {
+    const container = document.getElementById("conflicting-recipes-report");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (conflictingRecipes.length === 0) {
+        const p = document.createElement("p");
+        p.className = "tree-hint";
+        p.textContent = "No wasted recipes — every combination that's defined more than once agrees on the result.";
+        container.appendChild(p);
+        return;
+    }
+
+    const heading = document.createElement("p");
+    heading.className = "tree-dead-note";
+    heading.textContent = `${conflictingRecipes.length} wasted recipe${conflictingRecipes.length > 1 ? "s" : ""} — the same two ingredients are defined more than once with a different result. Only the first ever actually fires, in whatever order recipes.js defines them:`;
+    container.appendChild(heading);
+
+    const list = document.createElement("ul");
+    list.className = "orphan-list";
+    conflictingRecipes.forEach(c => {
+        const li = document.createElement("li");
+        li.textContent = `${c.a} + ${c.b} — makes "${c.keptResult}"; "${c.wastedResult}" is defined too but can never fire.`;
+        list.appendChild(li);
+    });
+    container.appendChild(list);
+}
+
 function updateRecipesStatusDisplay() {
     const el = document.getElementById("recipes-status");
     if (!el || !recipesLoadStatus.time) return;
@@ -361,6 +390,11 @@ async function reloadRecipes() {
     } catch (e) {
         console.error("Case collision report failed:", e);
     }
+    try {
+        renderConflictingRecipesReport();
+    } catch (e) {
+        console.error("Conflicting recipes report failed:", e);
+    }
 }
 
 function setupRecipeReload() {
@@ -372,6 +406,8 @@ function indexRecipe(el, entry) {
     if (!recipesByElement.has(el)) recipesByElement.set(el, []);
     recipesByElement.get(el).push(entry);
 }
+
+const conflictingRecipes = []; // { a, b, keptResult, wastedResult } — same ingredient pair, two different results, only one can ever fire
 
 function recipe(a, b, result) {
     const aTrimmed = a.trim();
@@ -388,6 +424,20 @@ function recipe(a, b, result) {
         // the file — one duplicate during editing would silently truncate
         // the whole list. Now it just logs and skips that one line.
         console.warn(`Skipped duplicate combo "${aTrimmed} + ${bTrimmed}" — already makes "${recipes[key]}".`);
+
+        // A genuinely wasted recipe: the same ingredient pair defined
+        // twice with a DIFFERENT result. Only one can ever actually fire
+        // (whichever was defined first), so the other is dead weight in
+        // the file — worth surfacing somewhere more visible than a
+        // console warning almost nobody will ever open.
+        if (recipes[key] !== resultTrimmed) {
+            conflictingRecipes.push({
+                a: aTrimmed,
+                b: bTrimmed,
+                keptResult: recipes[key],
+                wastedResult: resultTrimmed
+            });
+        }
         return;
     }
 
@@ -2458,6 +2508,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         renderCaseCollisionReport();
     } catch (e) {
         console.error("Case collision report failed:", e);
+    }
+    try {
+        renderConflictingRecipesReport();
+    } catch (e) {
+        console.error("Conflicting recipes report failed:", e);
     }
     try {
         validateDiscoveryPlausibility();
