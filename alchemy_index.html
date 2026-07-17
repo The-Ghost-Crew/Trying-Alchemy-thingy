@@ -826,180 +826,6 @@
 
   #ai-notice-ack:hover { background: #c85850; }
   #ai-notice-ack.acknowledged { background: var(--panel); color: var(--text-muted); cursor: default; }
-
-  /* ---------- Speedrun (v7.0) — purple / light-blue / grey theme ---------- */
-  :root {
-    --sr-blue: #8fb8de;
-    --sr-purple: #8a6fd1;
-    --sr-grey: #9aa3b5;
-  }
-
-  #speedrun-timer-bar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin: 0 0 10px;
-    padding: 8px 14px;
-    background: rgba(138, 111, 209, 0.08);
-    border: 1px solid var(--sr-purple);
-    border-radius: 8px;
-  }
-
-  #speedrun-timer {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 1.15rem;
-    color: var(--sr-blue);
-  }
-
-  #speedrun-goal {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.05em;
-    color: var(--sr-grey);
-  }
-
-  .sr-end-btn {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
-    text-transform: uppercase;
-    background: none;
-    border: 1px solid var(--sr-grey);
-    color: var(--sr-grey);
-    border-radius: 14px;
-    padding: 4px 10px;
-    cursor: pointer;
-  }
-
-  .sr-end-btn:hover { border-color: var(--sr-blue); color: var(--sr-blue); }
-
-  .sr-warning {
-    background: rgba(138, 111, 209, 0.1);
-    border: 1px solid var(--sr-purple);
-    border-radius: 8px;
-    padding: 12px 14px;
-    color: var(--sr-blue);
-    font-size: 0.88rem;
-    line-height: 1.5;
-    margin-bottom: 16px;
-  }
-
-  .sr-warning.sr-warning-ok { border-color: var(--sr-blue); color: var(--sr-grey); }
-
-  .sr-subtabs { display: flex; gap: 8px; margin-bottom: 16px; }
-
-  .sr-subtabs label {
-    flex: 1;
-    text-align: center;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--sr-grey);
-    border-radius: 20px;
-    padding: 9px 8px;
-    cursor: pointer;
-  }
-
-  .sr-subtabs input { display: none; }
-  .sr-subtabs label:has(input:checked) { border-color: var(--sr-blue); color: var(--sr-blue); }
-
-  .sr-card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--sr-purple);
-    border-radius: 6px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-  }
-
-  .sr-card h3 {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: 1.2rem;
-    color: var(--parchment);
-    margin: 0 0 6px;
-  }
-
-  .sr-card p { color: var(--text-muted); font-size: 0.86rem; line-height: 1.5; margin: 0 0 8px; }
-
-  .sr-note { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--sr-grey); }
-
-  .sr-card input[type="number"], .sr-card input[type="text"] {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
-    background: var(--panel-raised);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 12px;
-    border-radius: 6px;
-    width: 100%;
-    max-width: 320px;
-  }
-
-  .sr-radio-row { display: flex; gap: 18px; margin: 6px 0; }
-  .sr-radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.88rem; color: var(--text); cursor: pointer; }
-
-  .sr-manual-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
-  .sr-manual-row span { font-family: 'IBM Plex Mono', monospace; font-size: 0.75rem; color: var(--sr-grey); min-width: 140px; }
-  .sr-manual-row input { max-width: 110px; }
-
-  .sr-start-btn {
-    display: block;
-    width: 100%;
-    background: var(--sr-purple);
-    color: #fff;
-    border: none;
-    padding: 12px;
-    border-radius: 6px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    cursor: pointer;
-    margin-top: 8px;
-  }
-
-  .sr-start-btn:hover { background: #9a82db; }
-
-  .sr-status { font-size: 0.85rem; color: var(--sr-blue); margin: 10px 0 0; min-height: 1.2em; }
-  .sr-status.sr-status-err { color: var(--red); }
-  #sr-webhook-status { font-size: 0.85rem; color: var(--sr-blue); margin: 10px 0 0; min-height: 1.2em; }
-  #sr-webhook-status.sr-status-err { color: var(--red); }
-
-  .sr-log-line { font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: var(--sr-grey); margin: 3px 0; }
-
-  #sr-live-time {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 1.6rem;
-    color: var(--sr-blue);
-    display: block;
-    text-align: center;
-    margin: 8px 0;
-  }
-
-  #sr-countdown-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(20, 21, 31, 0.88);
-  }
-
-  #sr-countdown-overlay[hidden] { display: none; }
-
-  #sr-countdown-text {
-    font-family: 'Cormorant Garamond', serif;
-    font-weight: 700;
-    font-size: clamp(4rem, 20vw, 8rem);
-    color: var(--sr-blue);
-    text-shadow: 0 0 24px rgba(138, 111, 209, 0.55), 0 0 60px rgba(138, 111, 209, 0.3);
-  }
-
-  #sr-history-list { max-height: 260px; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -1066,12 +892,6 @@
   <div class="panel-card">
 
     <section id="tab-lab" class="tab-panel active">
-      <div id="speedrun-timer-bar" hidden>
-        <span id="speedrun-timer">0:00.0</span>
-        <span id="speedrun-goal" hidden></span>
-        <button id="speedrun-end-btn-top" class="sr-end-btn" type="button">End run</button>
-      </div>
-
       <div class="seal" id="progress-seal">
         <span class="progress-fraction">0 / 0</span>
         <span class="seal-label">Found</span>
@@ -1243,7 +1063,6 @@
         <h2>Hint Mode</h2>
         <p>Outlines any element that can combine with something already in your inventory right now, and moves those to the top of the Elements list. Meant to smooth out the grind, not to spoil what the result actually is.</p>
         <button id="hint-mode-toggle" class="sound-toggle" type="button">Hint Mode: Off</button>
-        <p id="hint-lock-note" class="sr-note" hidden>Locked during a speedrun — whichever way it was set at the start is how it stays until the run ends.</p>
       </div>
 
       <div class="about-block">
@@ -1322,99 +1141,9 @@
     </section>
 
     <section id="tab-speedrun" class="tab-panel">
-      <div id="sr-warning" class="sr-warning" hidden></div>
-
-      <div id="sr-settings">
-        <div class="sr-subtabs">
-          <label><input type="radio" name="sr-subtab" value="completionist" checked> Completionist</label>
-          <label><input type="radio" name="sr-subtab" value="target"> Target</label>
-        </div>
-
-        <div id="sr-comp-section">
-          <div class="sr-card">
-            <h3>Time bracket splits</h3>
-            <p>How many split checkpoints the run records along the way.</p>
-            <input type="number" id="sr-comp-count" min="1" value="5">
-            <p class="sr-note" id="sr-comp-max"></p>
-          </div>
-          <div class="sr-card">
-            <h3>Split placement</h3>
-            <p>Automatic spaces them evenly by percentage. Manual lets you place each one at an exact element count.</p>
-            <div class="sr-radio-row">
-              <label><input type="radio" name="sr-comp-mode" value="auto" checked> Automatic (even %)</label>
-              <label><input type="radio" name="sr-comp-mode" value="manual"> Manual</label>
-            </div>
-            <div id="sr-comp-manual" hidden></div>
-          </div>
-        </div>
-
-        <div id="sr-target-section" hidden>
-          <div class="sr-card">
-            <h3>Target element</h3>
-            <p>The run ends the moment this element is discovered. Defaults to whatever currently has the longest shortest-path.</p>
-            <input type="text" id="sr-target-input" list="sr-target-datalist" placeholder="Element name…" autocomplete="off">
-            <datalist id="sr-target-datalist"></datalist>
-            <p class="sr-note" id="sr-target-steps"></p>
-          </div>
-          <div class="sr-card">
-            <h3>Time bracket splits</h3>
-            <p>How many split checkpoints the run records along the shortest path.</p>
-            <input type="number" id="sr-target-count" min="1" value="5">
-            <p class="sr-note" id="sr-target-max"></p>
-          </div>
-          <div class="sr-card">
-            <h3>Split placement</h3>
-            <p>Automatic spaces them evenly by percentage. Manual lets you place each one at an exact step number.</p>
-            <div class="sr-radio-row">
-              <label><input type="radio" name="sr-target-mode" value="auto" checked> Automatic (even %)</label>
-              <label><input type="radio" name="sr-target-mode" value="manual"> Manual</label>
-            </div>
-            <div id="sr-target-manual" hidden></div>
-          </div>
-        </div>
-
-        <div class="sr-card">
-          <h3>Hint Mode</h3>
-          <p>Locked for the whole run once it starts — whichever way you set it here is how it stays.</p>
-          <div class="sr-radio-row">
-            <label><input type="radio" name="sr-hint" value="off" checked> Off</label>
-            <label><input type="radio" name="sr-hint" value="on"> On</label>
-          </div>
-        </div>
-
-        <button id="sr-start" class="sr-start-btn" type="button">Start speedrun</button>
-        <p id="sr-settings-status" class="sr-status"></p>
-
-        <div class="sr-card">
-          <h3>Your runs</h3>
-          <p>Every finished run, both types, newest first — kept on this device regardless of completion at start. The most recent 50 are kept.</p>
-          <div id="sr-history-list"></div>
-        </div>
-      </div>
-
-      <div id="sr-active" hidden>
-        <div class="sr-card">
-          <h3>Run in progress</h3>
-          <span id="sr-live-time">0:00.0</span>
-          <p id="sr-active-mode"></p>
-          <div id="sr-splits-log"></div>
-          <button id="sr-end" class="sr-start-btn" type="button">End speedrun &amp; return to normal play</button>
-        </div>
-      </div>
-
-      <div id="sr-finish" hidden>
-        <div class="sr-card">
-          <h3>Run complete</h3>
-          <p id="sr-finish-summary"></p>
-          <div id="sr-send-area">
-            <p>Want it on the board? Enter your name and it posts to the community Discord.</p>
-            <input type="text" id="sr-runner-name" placeholder="Runner name…" maxlength="64">
-            <p id="sr-webhook-status"></p>
-            <button id="sr-send" class="sr-start-btn" type="button">Send to Discord</button>
-          </div>
-          <p id="sr-ineligible-note" class="sr-note" hidden>This run started below 100% completion, so it isn't eligible for the community board — it's saved in your local run history instead.</p>
-          <button id="sr-skip" class="sr-end-btn" type="button" style="margin-top:10px;">Skip &amp; return to normal play</button>
-        </div>
+      <div class="about-block">
+        <h2>Speedrun</h2>
+        <p>Work in progress. The elements involving time are still currently being made to make this function.</p>
       </div>
     </section>
 
@@ -1429,9 +1158,5 @@
   // async fetch used for recipes.js.
   document.write('<script src="game.js?v=' + Date.now() + '"><\/script>');
 </script>
-<div id="sr-countdown-overlay" hidden>
-  <span id="sr-countdown-text"></span>
-</div>
-
 </body>
 </html>
