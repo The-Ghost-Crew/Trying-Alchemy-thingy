@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Infinite Number Recipe Generator</title>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    margin:40px;
+    background:#f5f5f5;
+}
+
+h2{
+    text-align:center;
+}
+
+.controls{
+    margin:20px 0;
+    text-align:center;
+}
+
+button{
+    padding:10px 18px;
+    margin:4px;
+    cursor:pointer;
+    font-size:16px;
+}
+
+#output{
+    background:white;
+    border:1px solid #ccc;
+    padding:15px;
+    white-space:pre;
+    overflow-wrap:anywhere;
+    min-height:250px;
+}
+</style>
+</head>
+<body>
+
+<h2>Why number + number = sum recipes are not allowed</h2>
+
+<div class="controls">
+<button id="start">Start</button>
+<button id="stop">Stop</button>
+<button id="copy">Copy</button>
+</div>
+
+<div id="output"></div>
+
+<script>
+
+const output=document.getElementById("output");
+
+let running=false;
+
+let sum=2;
+let index=1;
+
+function generateBatch(){
+
+    if(!running) return;
+
+    let text="";
+
+    for(let i=0;i<500;i++){
+
+        while(index<=Math.floor(sum/2)){
+
+            let a=index;
+            let b=sum-a;
+
+            if(b>=a){
+                text+=`recipe("${a}", "${b}", "${sum}");\n`;
+            }
+
+            index++;
+
+            if(text.length>25000){
+                break;
+            }
+        }
+
+        if(index>Math.floor(sum/2)){
+            sum++;
+            index=1;
+        }
+
+        if(text.length>25000){
+            break;
+        }
+    }
+
+    output.textContent+=text;
+
+    requestAnimationFrame(generateBatch);
+}
+
+document.getElementById("start").onclick=function(){
+
+    if(running) return;
+
+    running=true;
+    generateBatch();
+
+};
+
+document.getElementById("stop").onclick=function(){
+
+    running=false;
+
+};
+
+document.getElementById("copy").onclick=function(){
+
+    navigator.clipboard.writeText(output.textContent);
+
+};
+
+</script>
+
+</body>
+</html>
