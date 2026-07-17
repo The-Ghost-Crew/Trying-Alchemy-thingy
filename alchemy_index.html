@@ -82,8 +82,8 @@
 
   .tabs {
     display: flex;
-    gap: 3px;
-    padding: 0 6px;
+    gap: 2px;
+    padding: 0 4px;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -92,15 +92,15 @@
 
   .tab-button {
     font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.7rem;
-    letter-spacing: 0.02em;
+    font-size: 0.6rem;
+    letter-spacing: 0.01em;
     text-transform: uppercase;
     background: var(--panel);
     color: var(--text-muted);
     border: 1px solid var(--border);
     border-bottom: none;
     border-radius: 8px 8px 0 0;
-    padding: 8px 10px;
+    padding: 7px 7px;
     cursor: pointer;
     flex-shrink: 0;
     white-space: nowrap;
@@ -885,6 +885,7 @@
     <button class="tab-button" data-tab="sets">Sets</button>
     <button class="tab-button" data-tab="credits">Credits<span id="credits-badge" class="tab-badge">!</span></button>
     <button class="tab-button" data-tab="about">About</button>
+    <button class="tab-button" data-tab="speedrun">Speedrun</button>
     <a href="custom_alchemy.html" class="tab-button" target="_blank" rel="noopener noreferrer">Mods</a>
   </div>
 
@@ -1136,6 +1137,13 @@
       <div class="about-block">
         <h2>Why SVG icons, not PNG</h2>
         <p>Element icons are vector files (SVG), not pixel images. A vector shape is just math describing lines and curves, so it renders identically sharp whether it's shown at 18px or 1800px — there's no "blurry when scaled up" problem the way there is with PNGs, and no need to export separate sizes for different screens. SVGs are also tiny (usually under a kilobyte each for icons this simple), which adds up across a large discovered list. The tradeoff: SVG is a poor fit for photographic detail or gradients — it's built for clean shapes, which happens to be exactly this game's icon style already.</p>
+      </div>
+    </section>
+
+    <section id="tab-speedrun" class="tab-panel">
+      <div class="about-block">
+        <h2>Speedrun</h2>
+        <p>Work in progress. The elements involving time are still currently being made to make this function.</p>
       </div>
     </section>
 
