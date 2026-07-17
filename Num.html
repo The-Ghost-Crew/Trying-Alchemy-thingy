@@ -43,58 +43,145 @@ button:active{
 
 #output{
     background:#1e1e1e;
-    color:#e8e8e8;
     border:1px solid #444;
-    padding:15px;
-    white-space:pre;
-    overflow-wrap:anywhere;
-    min-height:250px;
     border-radius:8px;
+    padding:15px;
+    min-height:250px;
     font-family:Consolas,Monaco,monospace;
+}
+
+/* Fullscreen countdown */
+
+#countdown{
+    position:fixed;
+    inset:0;
+    display:none;
+    justify-content:center;
+    align-items:center;
+    background:rgba(0,0,0,.82);
+    color:white;
+    font-size:220px;
+    font-weight:900;
+    text-shadow:
+        0 0 15px white,
+        0 0 40px cyan,
+        0 0 70px magenta;
+    z-index:9999;
+    user-select:none;
+    animation:pop .9s ease;
+}
+
+@keyframes pop{
+    0%{
+        transform:scale(.2);
+        opacity:0;
+    }
+    30%{
+        transform:scale(1.25);
+        opacity:1;
+    }
+    100%{
+        transform:scale(1);
+        opacity:1;
+    }
 }
 </style>
 </head>
+
 <body>
 
 <h2>Why number + number = sum recipes are not allowed</h2>
 
 <div class="controls">
-<button id="start">Start</button>
-<button id="stop">Stop</button>
-<button id="copy">Copy</button>
+    <button id="start">Start</button>
+    <button id="stop">Stop</button>
+    <button id="copy">Copy</button>
 </div>
 
 <div id="output"></div>
 
+<div id="countdown"></div>
+
 <script>
 
 const output=document.getElementById("output");
+const countdown=document.getElementById("countdown");
+
+const rainbow=[
+"red",
+"orangered",
+"orange",
+"gold",
+"yellow",
+"greenyellow",
+"lime",
+"springgreen",
+"cyan",
+"deepskyblue",
+"dodgerblue",
+"blue",
+"indigo",
+"violet",
+"magenta",
+"deeppink"
+];
+
+let colorIndex=0;
 
 let running=false;
 
 let sum=2;
 let index=1;
 
+function sleep(ms){
+    return new Promise(resolve=>setTimeout(resolve,ms));
+}
+
+async function showCountdown(){
+
+    countdown.style.display="flex";
+
+    const values=["3","2","1","GO!"];
+
+    for(const value of values){
+
+        countdown.textContent=value;
+
+        countdown.style.animation="none";
+        void countdown.offsetWidth;
+        countdown.style.animation="pop .9s ease";
+
+        await sleep(value==="GO!" ? 700 : 1000);
+    }
+
+    countdown.style.display="none";
+}
+
 function generateBatch(){
 
     if(!running) return;
 
-    let text="";
+    let html="";
 
-    for(let i=0;i<500;i++){
+    while(html.length<25000){
 
         while(index<=Math.floor(sum/2)){
 
-            let a=index;
-            let b=sum-a;
+            const a=index;
+            const b=sum-a;
 
             if(b>=a){
-                text+=`recipe("${a}", "${b}", "${sum}");\n`;
+
+                const color=rainbow[colorIndex%rainbow.length];
+
+                html+=`<div style="color:${color};">recipe("${a}", "${b}", "${sum}");</div>`;
+
+                colorIndex++;
             }
 
             index++;
 
-            if(text.length>25000){
+            if(html.length>=25000){
                 break;
             }
         }
@@ -103,22 +190,21 @@ function generateBatch(){
             sum++;
             index=1;
         }
-
-        if(text.length>25000){
-            break;
-        }
     }
 
-    output.textContent+=text;
+    output.insertAdjacentHTML("beforeend",html);
 
     requestAnimationFrame(generateBatch);
 }
 
-document.getElementById("start").onclick=function(){
+document.getElementById("start").onclick=async function(){
 
     if(running) return;
 
+    await showCountdown();
+
     running=true;
+
     generateBatch();
 
 };
@@ -131,7 +217,7 @@ document.getElementById("stop").onclick=function(){
 
 document.getElementById("copy").onclick=function(){
 
-    navigator.clipboard.writeText(output.textContent);
+    navigator.clipboard.writeText(output.innerText);
 
 };
 
