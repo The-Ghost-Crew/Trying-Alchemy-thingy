@@ -14,6 +14,16 @@ const STORAGE_KEY = "alchemy_discovered_elements";
 const ORDER_STORAGE_KEY = "alchemy_discovery_order";
 const TIMESTAMPS_KEY = "alchemy_discovery_timestamps";
 
+// While a speedrun is active, ALL progress persistence (elements, order,
+// timestamps, signature) silently redirects to a parallel set of keys —
+// the normal save is never read or written mid-run, so ending a run
+// restores it byte-identical. Anti-cheat runs unchanged on the speedrun
+// data itself.
+let speedrunActive = false;
+function activeKey(base) {
+    return speedrunActive ? "speedrun_" + base : base;
+}
+
 // ---------- Element icons ----------
 //
 // No manifest file, on purpose. A recipe needs a list because it encodes a
@@ -140,6 +150,8 @@ function resetRecipeData() {
     universe.clear();
     BASE_ELEMENTS.forEach(el => universe.add(el));
     conflictingRecipes.length = 0;
+    speedTierData = null;   // tiers/step lengths recompute lazily against the fresh data
+    srDatalistBuilt = false;
 }
 
 let usedPrefetch = false;
@@ -770,10 +782,10 @@ function recordComboTiming() {
 function saveProgress() {
     try {
         const elementsArr = [...discovered];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(elementsArr));
-        localStorage.setItem(SIGNATURE_KEY, computeSignature(elementsArr));
-        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(discoveryOrder));
-        localStorage.setItem(TIMESTAMPS_KEY, JSON.stringify(discoveryTimestamps));
+        localStorage.setItem(activeKey(STORAGE_KEY), JSON.stringify(elementsArr));
+        localStorage.setItem(activeKey(SIGNATURE_KEY), computeSignature(elementsArr));
+        localStorage.setItem(activeKey(ORDER_STORAGE_KEY), JSON.stringify(discoveryOrder));
+        localStorage.setItem(activeKey(TIMESTAMPS_KEY), JSON.stringify(discoveryTimestamps));
     } catch (e) {
         console.warn("Could not save progress:", e);
     }
@@ -794,7 +806,7 @@ function loadProgress() {
     let loadedElements = null;
 
     try {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(activeKey(STORAGE_KEY));
         if (saved) {
             const parsed = JSON.parse(saved);
             if (Array.isArray(parsed)) {
@@ -806,7 +818,7 @@ function loadProgress() {
     }
 
     if (loadedElements) {
-        const storedSignature = localStorage.getItem(SIGNATURE_KEY);
+        const storedSignature = localStorage.getItem(activeKey(SIGNATURE_KEY));
         const expectedSignature = computeSignature(loadedElements);
 
         // A MISSING signature used to be silently trusted, as a
@@ -834,7 +846,7 @@ function loadProgress() {
     }
 
     try {
-        const savedOrder = localStorage.getItem(ORDER_STORAGE_KEY);
+        const savedOrder = localStorage.getItem(activeKey(ORDER_STORAGE_KEY));
         if (savedOrder) {
             const parsedOrder = JSON.parse(savedOrder);
             if (Array.isArray(parsedOrder)) {
@@ -846,7 +858,7 @@ function loadProgress() {
     }
 
     try {
-        const savedTimestamps = localStorage.getItem(TIMESTAMPS_KEY);
+        const savedTimestamps = localStorage.getItem(activeKey(TIMESTAMPS_KEY));
         if (savedTimestamps) {
             const parsedTimestamps = JSON.parse(savedTimestamps);
             if (parsedTimestamps && typeof parsedTimestamps === "object" && !Array.isArray(parsedTimestamps)) {
@@ -897,10 +909,10 @@ function resetProgress() {
         lastDiscoveredTimer = null;
     }
     try {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(SIGNATURE_KEY);
-        localStorage.removeItem(ORDER_STORAGE_KEY);
-        localStorage.removeItem(TIMESTAMPS_KEY);
+        localStorage.removeItem(activeKey(STORAGE_KEY));
+        localStorage.removeItem(activeKey(SIGNATURE_KEY));
+        localStorage.removeItem(activeKey(ORDER_STORAGE_KEY));
+        localStorage.removeItem(activeKey(TIMESTAMPS_KEY));
     } catch (e) {
         console.warn("Could not clear saved progress:", e);
     }
@@ -1286,7 +1298,10 @@ function updateProgressDisplays() {
     const deadEnds = deadEndDiscoveredCount();
     const complete = count >= total && total > 0;
 
-    document.querySelectorAll(".progress-fraction").forEach(n => (n.textContent = `${count} / ${total}`));
+    const targetedRun = speedrunActive && speedrunConfig && speedrunConfig.mode === "target";
+    document.querySelectorAll(".progress-fraction").forEach(
+        n => (n.textContent = targetedRun ? speedrunConfig.target : `${count} / ${total}`)
+    );
     document.querySelectorAll(".dead-end-count").forEach(
         n => (n.textContent = `${deadEnds} dead end${deadEnds === 1 ? "" : "s"} found`)
     );
@@ -1315,6 +1330,15 @@ function makeElementTile(element) {
     button.appendChild(document.createTextNode(element));
 
     button.onclick = () => {
+        // The run's clock starts on the player's first actual interaction,
+        // not on the Start button — pressing Start then walking away for
+        // a minute shouldn't count against the time.
+        if (speedrunActive && speedrunRun && !speedrunRun.startedAt && !speedrunRun.finished) {
+            speedrunRun.startedAt = Date.now();
+            persistSpeedrunState();
+            startSpeedrunTimerInterval();
+        }
+
         if (first === null) {
             first = element;
             render();
@@ -1345,6 +1369,7 @@ function makeElementTile(element) {
             setsDirty = true;
             graphLoadFailed = false;
             playDiscoverySound();
+            speedrunOnDiscovery();
         } else if (!result) {
             playNothingSound();
         }
@@ -1428,6 +1453,7 @@ function setupHintModeToggle() {
     updateLabel();
 
     btn.addEventListener("click", () => {
+        if (speedrunActive) return; // locked for the whole run, whichever way it was set at start
         hintModeEnabled = !hintModeEnabled;
         try {
             localStorage.setItem(HINT_MODE_KEY, String(hintModeEnabled));
@@ -2395,6 +2421,7 @@ function setupTabs() {
             document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
             if (btn.dataset.tab === "tree") ensureTreeUpToDate();
             if (btn.dataset.tab === "sets") ensureSetsUpToDate();
+            if (btn.dataset.tab === "speedrun") refreshSpeedrunSettingsUi();
         });
     });
 
@@ -2452,6 +2479,836 @@ document.addEventListener("keydown", event => {
     }
 });
 
+// =====================================================================
+// SPEEDRUN (v7.0)
+// =====================================================================
+
+// ---------- Step-length machinery (ported verbatim from database.js,
+// where every function below was already verified against a naive
+// per-element walk) ----------
+
+let speedTierData = null; // { tier, bestRecipe, stepLength } — recomputed lazily after any recipe reload
+
+function computeFullTiers() {
+    const tier = new Map();
+    const bestRecipe = new Map();
+    BASE_ELEMENTS.forEach(el => tier.set(el, 0));
+    let changed = true;
+    while (changed) {
+        changed = false;
+        recipeList.forEach(entry => {
+            if (!tier.has(entry.a) || !tier.has(entry.b)) return;
+            const candidate = Math.max(tier.get(entry.a), tier.get(entry.b)) + 1;
+            if (!tier.has(entry.result) || candidate < tier.get(entry.result)) {
+                tier.set(entry.result, candidate);
+                bestRecipe.set(entry.result, entry);
+                changed = true;
+            }
+        });
+    }
+    return { tier, bestRecipe };
+}
+
+function buildOrderFor(target, bestRecipe) {
+    const visited = new Set(BASE_ELEMENTS);
+    const order = [];
+    function visit(el) {
+        if (visited.has(el)) return;
+        visited.add(el);
+        const entry = bestRecipe.get(el);
+        if (!entry) return;
+        visit(entry.a);
+        visit(entry.b);
+        order.push(entry);
+    }
+    visit(target);
+    return order;
+}
+
+function computeStepLengths(bestRecipe, tier) {
+    const depSet = new Map();
+    BASE_ELEMENTS.forEach(el => depSet.set(el, new Set()));
+    const sortedByTier = [...tier.keys()]
+        .filter(el => !BASE_ELEMENTS.includes(el))
+        .sort((a, b) => tier.get(a) - tier.get(b));
+    sortedByTier.forEach(el => {
+        const entry = bestRecipe.get(el);
+        if (!entry) return;
+        const setA = depSet.get(entry.a) || new Set();
+        const setB = depSet.get(entry.b) || new Set();
+        depSet.set(el, new Set([...setA, ...setB, el]));
+    });
+    const stepLength = new Map();
+    depSet.forEach((set, el) => stepLength.set(el, set.size));
+    return stepLength;
+}
+
+function ensureSpeedTierData() {
+    if (speedTierData) return speedTierData;
+    if (recipeList.length === 0) return null;
+    const { tier, bestRecipe } = computeFullTiers();
+    const stepLength = computeStepLengths(bestRecipe, tier);
+    speedTierData = { tier, bestRecipe, stepLength };
+    return speedTierData;
+}
+
+function highestStepLengthElement() {
+    const data = ensureSpeedTierData();
+    if (!data) return null;
+    let best = null;
+    let bestLen = -1;
+    data.stepLength.forEach((len, el) => {
+        if (BASE_ELEMENTS.includes(el)) return;
+        if (len > bestLen) { bestLen = len; best = el; }
+    });
+    return best;
+}
+
+// ---------- Speedrun state ----------
+
+const SPEEDRUN_STATE_KEY = "alchemy_speedrun_state";
+const SPEEDRUN_WEBHOOK_URL = "https://discord.com/api/webhooks/1527618062935658508/1HlNzJo4uivrXCJYDbLcg1IS1X3ez2xMWaVGwKV952Nf6zhNP87vL9zRuBc8U0clyodU";
+
+// mode: "completionist" | "target"; thresholds: ascending milestone
+// numbers (element counts, or step counts along the target's build
+// order); startedAt: ms timestamp of the FIRST tile click, not the Start
+// button — the run doesn't begin until the player actually plays.
+let speedrunConfig = null;
+let speedrunRun = null;
+let speedrunTimerInterval = null;
+
+function persistSpeedrunState() {
+    try {
+        if (!speedrunActive) {
+            localStorage.removeItem(SPEEDRUN_STATE_KEY);
+            return;
+        }
+        localStorage.setItem(SPEEDRUN_STATE_KEY, JSON.stringify({
+            active: true,
+            config: speedrunConfig,
+            run: speedrunRun,
+        }));
+    } catch (e) {
+        console.warn("Could not persist speedrun state:", e);
+    }
+}
+
+// Runs BEFORE loadProgress() at init on purpose: speedrunActive must be
+// set first so activeKey() resolves to the speedrun key set and the
+// in-progress run's data loads instead of the parked normal save.
+function loadSpeedrunState() {
+    try {
+        const raw = localStorage.getItem(SPEEDRUN_STATE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || parsed.active !== true || !parsed.config) return;
+        speedrunConfig = parsed.config;
+        speedrunRun = parsed.run || { startedAt: null, splits: [], finished: false, finishMs: null };
+        speedrunActive = true;
+    } catch (e) {
+        console.warn("Could not load speedrun state:", e);
+    }
+}
+
+// ---------- Timer ----------
+
+function formatRunTime(ms) {
+    const tenths = Math.floor(ms / 100) % 10;
+    const s = Math.floor(ms / 1000);
+    const sec = s % 60;
+    const min = Math.floor(s / 60) % 60;
+    const hr = Math.floor(s / 3600);
+    const mm = String(min).padStart(hr > 0 ? 2 : 1, "0");
+    const ss = String(sec).padStart(2, "0");
+    return hr > 0 ? `${hr}:${mm}:${ss}.${tenths}` : `${mm}:${ss}.${tenths}`;
+}
+
+function currentRunElapsed() {
+    if (!speedrunRun || !speedrunRun.startedAt) return 0;
+    if (speedrunRun.finished && speedrunRun.finishMs !== null) return speedrunRun.finishMs;
+    return Date.now() - speedrunRun.startedAt;
+}
+
+function updateSpeedrunTimerDisplays() {
+    const text = speedrunRun && speedrunRun.startedAt ? formatRunTime(currentRunElapsed()) : "0:00.0";
+    const bar = document.getElementById("speedrun-timer");
+    if (bar) bar.textContent = text;
+    const live = document.getElementById("sr-live-time");
+    if (live) live.textContent = text;
+}
+
+function startSpeedrunTimerInterval() {
+    if (speedrunTimerInterval) return;
+    speedrunTimerInterval = setInterval(updateSpeedrunTimerDisplays, 100);
+}
+
+function stopSpeedrunTimerInterval() {
+    if (speedrunTimerInterval) {
+        clearInterval(speedrunTimerInterval);
+        speedrunTimerInterval = null;
+    }
+}
+
+// ---------- Run metric + splits ----------
+
+function speedrunTargetBuildSet() {
+    if (!speedrunConfig || speedrunConfig.mode !== "target") return null;
+    const data = ensureSpeedTierData();
+    if (!data) return null;
+    return new Set(buildOrderFor(speedrunConfig.target, data.bestRecipe).map(step => step.result));
+}
+
+function speedrunCurrentMetric() {
+    if (!speedrunConfig) return 0;
+    if (speedrunConfig.mode === "completionist") return validDiscoveredCount();
+    const buildSet = speedrunTargetBuildSet();
+    if (!buildSet) return 0;
+    let count = 0;
+    buildSet.forEach(el => { if (discovered.has(el)) count++; });
+    return count;
+}
+
+// Called after every successful discovery. Records any newly-crossed
+// split thresholds at the CURRENT elapsed time, then checks completion.
+function speedrunOnDiscovery() {
+    if (!speedrunActive || !speedrunRun || speedrunRun.finished) return;
+
+    const metric = speedrunCurrentMetric();
+    const elapsed = currentRunElapsed();
+
+    (speedrunConfig.thresholds || []).forEach(at => {
+        if (metric >= at && !speedrunRun.splits.some(s => s.at === at)) {
+            speedrunRun.splits.push({ at, ms: elapsed });
+        }
+    });
+
+    const done = speedrunConfig.mode === "completionist"
+        ? validDiscoveredCount() >= universe.size && universe.size > 0
+        : discovered.has(speedrunConfig.target);
+
+    if (done) {
+        speedrunRun.finished = true;
+        speedrunRun.finishMs = elapsed;
+        stopSpeedrunTimerInterval();
+        updateSpeedrunTimerDisplays();
+        recordSpeedrunHistory();
+        showSpeedrunFinishBlock();
+    }
+
+    persistSpeedrunState();
+    renderSpeedrunSplitsLog();
+}
+
+function renderSpeedrunSplitsLog() {
+    const log = document.getElementById("sr-splits-log");
+    if (!log || !speedrunRun) return;
+    log.innerHTML = "";
+    const unit = speedrunConfig.mode === "completionist" ? "elements" : "steps";
+    speedrunRun.splits
+        .slice()
+        .sort((a, b) => a.at - b.at)
+        .forEach((s, i) => {
+            const p = document.createElement("p");
+            p.className = "sr-log-line";
+            p.textContent = `Split ${i + 1} — ${s.at} ${unit}: ${formatRunTime(s.ms)}`;
+            log.appendChild(p);
+        });
+}
+
+// ---------- Start / end / finish ----------
+
+function computeAutoThresholds(total, n) {
+    const out = [];
+    for (let i = 1; i <= n; i++) {
+        const v = Math.round((total * i) / n);
+        if (v >= 1 && (out.length === 0 || v > out[out.length - 1])) out.push(v);
+    }
+    if (out.length === 0 || out[out.length - 1] !== total) out.push(total);
+    return out;
+}
+
+function readManualThresholds(containerId, total) {
+    const container = document.getElementById(containerId);
+    if (!container) return { error: "Split inputs missing." };
+    const inputs = container.querySelectorAll("input");
+    const values = [];
+    for (const input of inputs) {
+        const v = Number(input.value);
+        if (!Number.isInteger(v) || v < 1 || v > total) {
+            return { error: `Every split must be a whole number between 1 and ${total}.` };
+        }
+        values.push(v);
+    }
+    for (let i = 1; i < values.length; i++) {
+        if (values[i] <= values[i - 1]) return { error: "Splits must be in strictly increasing order." };
+    }
+    return { values };
+}
+
+function setSpeedrunSettingsStatus(msg, isError) {
+    const el = document.getElementById("sr-settings-status");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("sr-status-err", !!isError);
+}
+
+async function startSpeedrun() {
+    if (speedrunActive || srCountdownRunning) return;
+    const data = ensureSpeedTierData();
+    if (!data) {
+        setSpeedrunSettingsStatus("Recipes are still loading — try again in a moment.", true);
+        return;
+    }
+
+    const mode = document.querySelector('input[name="sr-subtab"]:checked')?.value === "target" ? "target" : "completionist";
+    const hintOn = document.querySelector('input[name="sr-hint"]:checked')?.value === "on";
+
+    let thresholds;
+    let target = null;
+
+    if (mode === "completionist") {
+        const total = universe.size;
+        const maxSplits = Math.max(1, Math.ceil(total / 100));
+        const count = Number(document.getElementById("sr-comp-count")?.value) || 1;
+        if (count < 1 || count > maxSplits) {
+            setSpeedrunSettingsStatus(`Split count must be between 1 and ${maxSplits}.`, true);
+            return;
+        }
+        const manual = document.querySelector('input[name="sr-comp-mode"]:checked')?.value === "manual";
+        if (manual) {
+            const res = readManualThresholds("sr-comp-manual", total);
+            if (res.error) { setSpeedrunSettingsStatus(res.error, true); return; }
+            thresholds = res.values;
+        } else {
+            thresholds = computeAutoThresholds(total, count);
+        }
+    } else {
+        target = (document.getElementById("sr-target-input")?.value || "").trim();
+        if (!target || !universe.has(target)) {
+            setSpeedrunSettingsStatus("Pick a real element to target — it has to exist in the current recipes.", true);
+            return;
+        }
+        if (BASE_ELEMENTS.includes(target)) {
+            setSpeedrunSettingsStatus("That's a starting element — it's already discovered the moment the run begins.", true);
+            return;
+        }
+        if (!data.tier.has(target)) {
+            setSpeedrunSettingsStatus("That element is currently unreachable from the starting elements, so a run can never finish.", true);
+            return;
+        }
+        const steps = buildOrderFor(target, data.bestRecipe).length;
+        const maxSplits = Math.max(1, Math.ceil(steps / 10));
+        const count = Number(document.getElementById("sr-target-count")?.value) || 1;
+        if (count < 1 || count > maxSplits) {
+            setSpeedrunSettingsStatus(`Split count must be between 1 and ${maxSplits}.`, true);
+            return;
+        }
+        const manual = document.querySelector('input[name="sr-target-mode"]:checked')?.value === "manual";
+        if (manual) {
+            const res = readManualThresholds("sr-target-manual", steps);
+            if (res.error) { setSpeedrunSettingsStatus(res.error, true); return; }
+            thresholds = res.values;
+        } else {
+            thresholds = computeAutoThresholds(steps, count);
+        }
+    }
+
+    setSpeedrunSettingsStatus("");
+
+    // Board eligibility is decided by the state of the NORMAL save at this
+    // exact moment — before the data swap below. Checking any later would
+    // be measuring the run's own dataset instead of the player's actual
+    // pre-run completion. 99.9% is not 100%: strict >=, no rounding.
+    const eligibleForBoard = validDiscoveredCount() >= universe.size && universe.size > 0;
+
+    speedrunConfig = { mode, target, thresholds, hintOn, eligibleForBoard };
+    speedrunRun = { startedAt: null, splits: [], finished: false, finishMs: null };
+    speedrunActive = true;
+
+    // Fresh base-4 dataset on the speedrun keys; the normal save is
+    // untouched and waiting for endSpeedrun().
+    discovered.clear();
+    BASE_ELEMENTS.forEach(el => discovered.add(el));
+    discoveryOrder = [...BASE_ELEMENTS];
+    discoveryTimestamps = Object.fromEntries(BASE_ELEMENTS.map(el => [el, 0]));
+    reconciledUnknownElements = new Set();
+    first = null;
+    lastDiscovered = null;
+    saveProgress();
+    persistSpeedrunState();
+
+    // Hint mode: applied in memory only, NOT written to the normal
+    // preference key — the player's usual setting comes back untouched
+    // when the run ends.
+    hintModeEnabled = hintOn;
+    applySpeedrunHintLockUi();
+    if (hintOn) resetHintIdleTimer(); else stopHintIdleTimer();
+
+    applySpeedrunActiveUi();
+    updateProgressDisplays();
+    render();
+    treeDirty = true;
+    setsDirty = true;
+
+    // Straight into playing — the timer starts on their first tile click.
+    document.querySelector('button.tab-button[data-tab="lab"]')?.click();
+
+    // Ceremonial countdown. The overlay blocks tile clicks while it runs,
+    // so the clock (first-click-started) can't begin until it clears.
+    await runSpeedrunCountdown();
+}
+
+// Adapted from Ghost's own sketch — same sequential-await structure,
+// reskinned onto a themed overlay, and "Go!" swapped for "Alchemy!!".
+let srCountdownRunning = false;
+async function runSpeedrunCountdown() {
+    const overlay = document.getElementById("sr-countdown-overlay");
+    const text = document.getElementById("sr-countdown-text");
+    if (!overlay || !text) return;
+    srCountdownRunning = true;
+    overlay.hidden = false;
+    for (const step of ["3", "2", "1"]) {
+        text.textContent = step;
+        await new Promise(r => setTimeout(r, 1000));
+    }
+    text.textContent = "Alchemy!!";
+    await new Promise(r => setTimeout(r, 500));
+    text.textContent = "";
+    overlay.hidden = true;
+    srCountdownRunning = false;
+}
+
+function endSpeedrun() {
+    if (!speedrunActive) return;
+    stopSpeedrunTimerInterval();
+
+    // Clear the speedrun dataset while its keys are still active…
+    resetProgress();
+    speedrunActive = false;
+    speedrunConfig = null;
+    speedrunRun = null;
+    persistSpeedrunState();
+
+    // …then reload the untouched normal save.
+    discovered.clear();
+    BASE_ELEMENTS.forEach(el => discovered.add(el));
+    discoveryOrder = [...BASE_ELEMENTS];
+    discoveryTimestamps = Object.fromEntries(BASE_ELEMENTS.map(el => [el, 0]));
+    reconciledUnknownElements = new Set();
+    loadProgress();
+    loadHintModePreference();
+    applySpeedrunHintLockUi();
+    applySpeedrunActiveUi();
+    updateProgressDisplays();
+    render();
+    treeDirty = true;
+    setsDirty = true;
+}
+
+// ---------- UI state ----------
+
+function applySpeedrunHintLockUi() {
+    const btn = document.getElementById("hint-mode-toggle");
+    if (!btn) return;
+    btn.disabled = speedrunActive;
+    btn.textContent = hintModeEnabled ? "Hint Mode: On" : "Hint Mode: Off";
+    btn.classList.toggle("muted", !hintModeEnabled);
+    const note = document.getElementById("hint-lock-note");
+    if (note) note.hidden = !speedrunActive;
+}
+
+function applySpeedrunActiveUi() {
+    const bar = document.getElementById("speedrun-timer-bar");
+    if (bar) bar.hidden = !speedrunActive;
+
+    const settings = document.getElementById("sr-settings");
+    if (settings) settings.hidden = speedrunActive;
+
+    const active = document.getElementById("sr-active");
+    if (active) active.hidden = !speedrunActive || (speedrunRun && speedrunRun.finished);
+
+    const finish = document.getElementById("sr-finish");
+    if (finish) finish.hidden = !(speedrunActive && speedrunRun && speedrunRun.finished);
+
+    const modeLine = document.getElementById("sr-active-mode");
+    if (modeLine && speedrunConfig) {
+        modeLine.textContent = speedrunConfig.mode === "completionist"
+            ? "Completionist run — discover everything."
+            : `Target run — reach "${speedrunConfig.target}".`;
+    }
+
+    const goalLine = document.getElementById("speedrun-goal");
+    if (goalLine) {
+        goalLine.hidden = !(speedrunActive && speedrunConfig && speedrunConfig.mode === "target");
+        if (speedrunConfig && speedrunConfig.target) goalLine.textContent = `GOAL: ${speedrunConfig.target}`;
+    }
+
+    updateSpeedrunTimerDisplays();
+    renderSpeedrunSplitsLog();
+    if (speedrunActive && speedrunRun && speedrunRun.startedAt && !speedrunRun.finished) {
+        startSpeedrunTimerInterval();
+    }
+}
+
+// ---------- Local run history (all finished runs, eligible or not) ----------
+
+const SPEEDRUN_HISTORY_KEY = "alchemy_speedrun_history";
+const SPEEDRUN_HISTORY_CAP = 50; // newest kept; prevents unbounded localStorage growth
+
+function loadSpeedrunHistory() {
+    try {
+        const raw = localStorage.getItem(SPEEDRUN_HISTORY_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.warn("Could not load speedrun history:", e);
+        return [];
+    }
+}
+
+function recordSpeedrunHistory() {
+    if (!speedrunConfig || !speedrunRun || !speedrunRun.finished) return;
+    try {
+        const history = loadSpeedrunHistory();
+        history.unshift({
+            mode: speedrunConfig.mode,
+            target: speedrunConfig.target || null,
+            hintOn: !!speedrunConfig.hintOn,
+            eligible: !!speedrunConfig.eligibleForBoard,
+            timeMs: speedrunRun.finishMs,
+            splits: speedrunRun.splits.slice().sort((a, b) => a.at - b.at),
+            at: Date.now(),
+        });
+        localStorage.setItem(SPEEDRUN_HISTORY_KEY, JSON.stringify(history.slice(0, SPEEDRUN_HISTORY_CAP)));
+    } catch (e) {
+        console.warn("Could not record speedrun history:", e);
+    }
+    renderSpeedrunHistory();
+}
+
+function renderSpeedrunHistory() {
+    const list = document.getElementById("sr-history-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const history = loadSpeedrunHistory();
+    if (history.length === 0) {
+        const p = document.createElement("p");
+        p.className = "sr-note";
+        p.textContent = "No finished runs yet.";
+        list.appendChild(p);
+        return;
+    }
+    history.forEach(run => {
+        const p = document.createElement("p");
+        p.className = "sr-log-line";
+        const kind = run.mode === "target" ? `Target \u00b7 ${run.target}` : "Completionist";
+        const when = new Date(run.at).toLocaleString();
+        p.textContent = `${kind} \u2014 ${formatRunTime(run.timeMs)} \u2014 Hint ${run.hintOn ? "On" : "Off"}${run.eligible ? "" : " \u2014 local only (started below 100%)"} \u2014 ${when}`;
+        list.appendChild(p);
+    });
+}
+
+function showSpeedrunFinishBlock() {
+    applySpeedrunActiveUi();
+    const summary = document.getElementById("sr-finish-summary");
+    if (summary && speedrunRun) {
+        const what = speedrunConfig.mode === "completionist"
+            ? "Completionist run finished"
+            : `Target run finished — "${speedrunConfig.target}" reached`;
+        summary.textContent = `${what} in ${formatRunTime(speedrunRun.finishMs)}.`;
+    }
+
+    const sendArea = document.getElementById("sr-send-area");
+    const ineligibleNote = document.getElementById("sr-ineligible-note");
+    const eligible = !!(speedrunConfig && speedrunConfig.eligibleForBoard);
+    if (sendArea) sendArea.hidden = !eligible;
+    if (ineligibleNote) ineligibleNote.hidden = eligible;
+}
+
+// ---------- Webhook (name filter copied from suggest.js, where it's
+// already tested against leet-speak and separator evasion) ----------
+
+const SR_BLOCKED_TERM_ROOTS = ["nigger", "nigga", "faggot", "kike", "tranny"];
+const SR_LEET_MAP = {
+    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s",
+    "7": "t", "8": "b", "@": "a", "$": "s", "!": "i"
+};
+
+function srNormalizeForFilter(text) {
+    let normalized = text.toLowerCase();
+    normalized = normalized.split("").map(ch => SR_LEET_MAP[ch] || ch).join("");
+    normalized = normalized.replace(/[^a-z]/g, "");
+    return normalized;
+}
+
+function srNameIsBlocked(name) {
+    if (!name) return "Enter a name first.";
+    if (name.length > 64) return "Name is too long — keep it under 64 characters.";
+    if (/(https?:\/\/|www\.|discord\.gg|\.com|\.net|\.org|\.gg)/i.test(name)) {
+        return "Links aren't allowed in the runner name.";
+    }
+    const normalized = srNormalizeForFilter(name);
+    if (SR_BLOCKED_TERM_ROOTS.some(term => normalized.includes(term))) {
+        return "That name isn't allowed.";
+    }
+    return null;
+}
+
+function setSpeedrunWebhookStatus(msg, isError) {
+    const el = document.getElementById("sr-webhook-status");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.classList.toggle("sr-status-err", !!isError);
+}
+
+function buildSpeedrunSplitFields() {
+    const unit = speedrunConfig.mode === "completionist" ? "elements" : "steps";
+    const lines = speedrunRun.splits
+        .slice()
+        .sort((a, b) => a.at - b.at)
+        .map((s, i) => `Split ${i + 1} — ${s.at} ${unit}: ${formatRunTime(s.ms)}`);
+    if (lines.length === 0) return [{ name: "Splits", value: "None recorded." }];
+
+    // Discord caps a field's value at 1024 characters — chunk if needed.
+    const fields = [];
+    let current = [];
+    let currentLen = 0;
+    lines.forEach(line => {
+        if (currentLen + line.length + 1 > 1000) {
+            fields.push(current);
+            current = [];
+            currentLen = 0;
+        }
+        current.push(line);
+        currentLen += line.length + 1;
+    });
+    if (current.length > 0) fields.push(current);
+    return fields.map((chunk, i) => ({
+        name: fields.length === 1 ? "Splits" : `Splits (${i + 1}/${fields.length})`,
+        value: chunk.join("\n"),
+    }));
+}
+
+async function sendSpeedrunWebhook() {
+    if (!speedrunRun || !speedrunRun.finished) return;
+
+    // Belt-and-suspenders with the hidden UI: even a direct call refuses.
+    if (!speedrunConfig || !speedrunConfig.eligibleForBoard) {
+        setSpeedrunWebhookStatus("This run started below 100% completion, so it isn't eligible for the community board \u2014 it's kept in your local history instead.", true);
+        return;
+    }
+
+    const nameInput = document.getElementById("sr-runner-name");
+    const name = (nameInput?.value || "").trim();
+    const blocked = srNameIsBlocked(name);
+    if (blocked) {
+        setSpeedrunWebhookStatus(blocked, true);
+        return;
+    }
+
+    const isTarget = speedrunConfig.mode === "target";
+    const embed = {
+        title: isTarget ? `Target Speedrun: ${speedrunConfig.target}` : "Completionist Speedrun",
+        color: isTarget ? 10467021 : 8900331, // grey-blue vs light blue
+        fields: [
+            { name: "Runner", value: name, inline: true },
+            { name: "Hint Mode", value: speedrunConfig.hintOn ? "On" : "Off", inline: true },
+            { name: "Time", value: formatRunTime(speedrunRun.finishMs), inline: true },
+            ...(isTarget ? [{ name: "Target", value: speedrunConfig.target, inline: true }] : []),
+            ...buildSpeedrunSplitFields(),
+        ],
+    };
+
+    setSpeedrunWebhookStatus("Sending…", false);
+    try {
+        const res = await fetch(SPEEDRUN_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ embeds: [embed] }),
+        });
+        if (res.ok || res.status === 204) {
+            setSpeedrunWebhookStatus("Sent — your run is on the board.", false);
+        } else {
+            setSpeedrunWebhookStatus(`Discord rejected it (HTTP ${res.status}) — try again in a moment.`, true);
+        }
+    } catch (e) {
+        setSpeedrunWebhookStatus("Could not reach Discord — check your connection and try again.", true);
+    }
+}
+
+// ---------- Settings UI ----------
+
+function formatCompletionPercent(count, total) {
+    if (total === 0) return "0%";
+    return `${parseFloat(((count / total) * 100).toFixed(3))}%`;
+}
+
+function rebuildManualSplitInputs(containerId, count, total, unit) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = "";
+    for (let i = 1; i <= count; i++) {
+        const label = document.createElement("label");
+        label.className = "sr-manual-row";
+        const span = document.createElement("span");
+        span.textContent = `Split ${i} at ${unit}:`;
+        label.appendChild(span);
+        const input = document.createElement("input");
+        input.type = "number";
+        input.min = "1";
+        input.max = String(total);
+        input.placeholder = String(Math.round((total * i) / count));
+        label.appendChild(input);
+        container.appendChild(label);
+    }
+}
+
+function refreshSpeedrunSettingsUi() {
+    const warning = document.getElementById("sr-warning");
+    const data = ensureSpeedTierData();
+
+    if (!data) {
+        if (warning) {
+            warning.hidden = false;
+            warning.textContent = "Recipes are still loading — settings unlock once they're in.";
+        }
+        return;
+    }
+
+    const count = validDiscoveredCount();
+    const total = universe.size;
+    if (warning) {
+        if (count >= total) {
+            warning.hidden = false;
+            warning.classList.add("sr-warning-ok");
+            warning.textContent = "You're at 100% — runs from here are valid for recognition.";
+        } else {
+            warning.hidden = false;
+            warning.classList.remove("sr-warning-ok");
+            warning.textContent = `You're at ${formatCompletionPercent(count, total)} (${count}/${total}). Runs started before 100% use fewer elements, so they won't post to the community board \u2014 they're still timed and saved in your local run history below — finish the game first for an official run.`;
+        }
+    }
+
+    // Completionist
+    const compMax = Math.max(1, Math.ceil(total / 100));
+    const compMaxNote = document.getElementById("sr-comp-max");
+    if (compMaxNote) compMaxNote.textContent = `1 to ${compMax} (that's ${total} elements ÷ 100, rounded up)`;
+    const compCount = document.getElementById("sr-comp-count");
+    if (compCount) {
+        compCount.max = String(compMax);
+        if (!compCount.value || Number(compCount.value) > compMax) compCount.value = String(Math.min(compMax, 5));
+    }
+
+    // Target — default to the current highest-step-length element
+    const targetInput = document.getElementById("sr-target-input");
+    if (targetInput && !targetInput.value) {
+        const def = highestStepLengthElement();
+        if (def) targetInput.value = def;
+    }
+    refreshTargetDependentSettings();
+
+    rebuildDatalist();
+    rebuildManualIfVisible();
+    renderSpeedrunHistory();
+}
+
+function refreshTargetDependentSettings() {
+    const data = ensureSpeedTierData();
+    if (!data) return;
+    const target = (document.getElementById("sr-target-input")?.value || "").trim();
+    const info = document.getElementById("sr-target-steps");
+    const maxNote = document.getElementById("sr-target-max");
+    const countInput = document.getElementById("sr-target-count");
+
+    if (!target || !universe.has(target) || !data.tier.has(target) || BASE_ELEMENTS.includes(target)) {
+        if (info) info.textContent = target ? "Not a reachable, non-starting element — pick another." : "";
+        if (maxNote) maxNote.textContent = "";
+        return;
+    }
+
+    const steps = buildOrderFor(target, data.bestRecipe).length;
+    if (info) info.textContent = `"${target}" takes ${steps} step${steps === 1 ? "" : "s"} at its shortest.`;
+    const max = Math.max(1, Math.ceil(steps / 10));
+    if (maxNote) maxNote.textContent = `1 to ${max} (${steps} steps ÷ 10, rounded up)`;
+    if (countInput) {
+        countInput.max = String(max);
+        if (!countInput.value || Number(countInput.value) > max) countInput.value = String(Math.min(max, 5));
+    }
+}
+
+let srDatalistBuilt = false;
+function rebuildDatalist() {
+    if (srDatalistBuilt) return;
+    const list = document.getElementById("sr-target-datalist");
+    if (!list) return;
+    list.innerHTML = "";
+    const data = ensureSpeedTierData();
+    if (!data) return;
+    [...universe]
+        .filter(el => !BASE_ELEMENTS.includes(el) && data.tier.has(el))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+        .forEach(el => {
+            const opt = document.createElement("option");
+            opt.value = el;
+            list.appendChild(opt);
+        });
+    srDatalistBuilt = true;
+}
+
+function rebuildManualIfVisible() {
+    const compManual = document.querySelector('input[name="sr-comp-mode"]:checked')?.value === "manual";
+    const compContainer = document.getElementById("sr-comp-manual");
+    if (compContainer) compContainer.hidden = !compManual;
+    if (compManual) {
+        const count = Number(document.getElementById("sr-comp-count")?.value) || 1;
+        rebuildManualSplitInputs("sr-comp-manual", count, universe.size, "element count");
+    }
+
+    const targetManual = document.querySelector('input[name="sr-target-mode"]:checked')?.value === "manual";
+    const targetContainer = document.getElementById("sr-target-manual");
+    if (targetContainer) targetContainer.hidden = !targetManual;
+    if (targetManual) {
+        const data = ensureSpeedTierData();
+        const target = (document.getElementById("sr-target-input")?.value || "").trim();
+        if (data && universe.has(target) && data.tier.has(target)) {
+            const steps = buildOrderFor(target, data.bestRecipe).length;
+            const count = Number(document.getElementById("sr-target-count")?.value) || 1;
+            rebuildManualSplitInputs("sr-target-manual", count, steps, "step");
+        }
+    }
+}
+
+function setupSpeedrunUi() {
+    // Sub-tab switching between the two modes
+    document.querySelectorAll('input[name="sr-subtab"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+            const target = document.querySelector('input[name="sr-subtab"]:checked')?.value === "target";
+            const compSection = document.getElementById("sr-comp-section");
+            const targetSection = document.getElementById("sr-target-section");
+            if (compSection) compSection.hidden = target;
+            if (targetSection) targetSection.hidden = !target;
+        });
+    });
+
+    document.getElementById("sr-target-input")?.addEventListener("input", () => {
+        refreshTargetDependentSettings();
+        rebuildManualIfVisible();
+    });
+    document.getElementById("sr-comp-count")?.addEventListener("input", rebuildManualIfVisible);
+    document.getElementById("sr-target-count")?.addEventListener("input", rebuildManualIfVisible);
+    document.querySelectorAll('input[name="sr-comp-mode"], input[name="sr-target-mode"]').forEach(radio => {
+        radio.addEventListener("change", rebuildManualIfVisible);
+    });
+
+    document.getElementById("sr-start")?.addEventListener("click", startSpeedrun);
+    document.getElementById("sr-end")?.addEventListener("click", endSpeedrun);
+    document.getElementById("speedrun-end-btn-top")?.addEventListener("click", endSpeedrun);
+    document.getElementById("sr-send")?.addEventListener("click", sendSpeedrunWebhook);
+    document.getElementById("sr-skip")?.addEventListener("click", endSpeedrun);
+}
+
+
 window.addEventListener("DOMContentLoaded", async () => {
     // Checked first, before anything else runs — this is what makes the
     // lock survive a refresh. A refresh re-runs this whole handler, and
@@ -2470,10 +3327,16 @@ window.addEventListener("DOMContentLoaded", async () => {
         return; // no combining, no saving, nothing else initializes until this clears — including background music, which only makes sense during normal play
     }
 
+    loadSpeedrunState(); // MUST precede loadProgress — sets speedrunActive so activeKey() routes to the run's own data
     loadProgress();
     loadDeadEndCollapsePreference();
     loadSortModePreference();
     loadHintModePreference();
+    if (speedrunActive && speedrunConfig) {
+        // Mid-run reload: the wizard-chosen hint state overrides the
+        // normal preference for the run's duration, exactly as at start.
+        hintModeEnabled = !!speedrunConfig.hintOn;
+    }
     loadAiNoticePreference();
     setupTabs();
     setupSearch();
@@ -2486,6 +3349,13 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupDeadEndToggle();
     setupSortToggle();
     setupHintModeToggle();
+    setupSpeedrunUi();
+    if (speedrunActive) {
+        // Mid-run reload: re-lock hint mode, re-show the timer bar and
+        // active/finish blocks, and restart the clock if it was running.
+        applySpeedrunHintLockUi();
+        applySpeedrunActiveUi();
+    }
     setupAiNoticeAck();
     setupSimpleToggles();
     setupRecipeReload();
