@@ -174,6 +174,7 @@ function showElement(name) {
 
 function showBrowse() {
     stopNothingMessages();
+    document.body.classList.remove("void");
     location.hash = "";
     document.getElementById("browse-view").classList.remove("hidden");
     document.getElementById("detail-view").classList.remove("active");
@@ -333,15 +334,17 @@ function makeElementTile(el) {
 
 const NOTHING_MESSAGES = [
     "Nothing is here.",
-    "There's nothing to see.",
-    "It didn't exist.",
-    "You sure you're looking at the right page?",
+    "This entry was never finished.",
+    "No record exists.",
     "Still nothing.",
-    "Nope. Nothing.",
+    "The archivist made no note here.",
     "Have you tried looking somewhere else?",
+    "Struck from the record.",
     "This is the whole page.",
+    "Some entries are better left blank.",
     "Nothing happened, as advertised.",
-    "Come back later. It'll still be nothing.",
+    "You weren't meant to find this page.",
+    "The book has nothing more to say.",
 ];
 let nothingMessageInterval = null;
 
@@ -364,6 +367,7 @@ function renderDetail(name) {
     stopNothingMessages(); // always clear any previous rotation before deciding whether to start a new one
 
     if (name === NOTHING_HAPPENS) {
+        document.body.classList.add("void");
         document.getElementById("detail-tier").textContent = "The wildcard";
 
         const madeFromEl = document.getElementById("detail-made-from");
@@ -377,9 +381,13 @@ function renderDetail(name) {
         let i = 0;
         msg.textContent = NOTHING_MESSAGES[0];
         nothingMessageInterval = setInterval(() => {
-            i = (i + 1) % NOTHING_MESSAGES.length;
-            msg.textContent = NOTHING_MESSAGES[i];
-        }, 2200);
+            msg.style.opacity = "0";
+            setTimeout(() => {
+                i = (i + 1) % NOTHING_MESSAGES.length;
+                msg.textContent = NOTHING_MESSAGES[i];
+                msg.style.opacity = "1";
+            }, 500);
+        }, 2600);
 
         const usedNote = document.createElement("p");
         usedNote.className = "empty-note";
@@ -394,6 +402,8 @@ function renderDetail(name) {
         window.scrollTo(0, 0);
         return;
     }
+
+    document.body.classList.remove("void");
 
     const { tier, bestRecipe } = tierData;
     const tierEl = document.getElementById("detail-tier");
