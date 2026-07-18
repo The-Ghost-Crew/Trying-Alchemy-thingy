@@ -79,6 +79,14 @@ function createElementIcon(element) {
 
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
+// A hardcoded, always-present "wildcard" element: any combo with no real
+// recipe now discovers this instead of producing a dead end, and it
+// absorbs anything it touches afterward (nothing happens + X = nothing
+// happens, always). Reserved and enforced in combine() below regardless
+// of what recipes.js might say — a real recipe accidentally using this
+// name can never override the hardcoded behavior.
+const NOTHING_HAPPENS = "nothing happens";
+
 const discovered = new Set(BASE_ELEMENTS);
 let discoveryOrder = [...BASE_ELEMENTS]; // oldest-first record of when each element was actually found
 // Deliberately separate from discoveryOrder, not folded into it — order can
@@ -149,6 +157,7 @@ function resetRecipeData() {
     recipesByElement.clear();
     universe.clear();
     BASE_ELEMENTS.forEach(el => universe.add(el));
+    universe.add(NOTHING_HAPPENS);
     conflictingRecipes.length = 0;
     speedTierData = null;   // tiers/step lengths recompute lazily against the fresh data
     srPreviewScope = null;
@@ -195,7 +204,7 @@ async function loadRecipes({ forceFresh = false } = {}) {
 // itself an orphan, and that thing's consumer is an orphan too, arbitrarily
 // deep. A shallow "check its direct recipe" version would miss any of that.
 function computeReachable() {
-    const reachable = new Set(BASE_ELEMENTS);
+    const reachable = new Set([...BASE_ELEMENTS, NOTHING_HAPPENS]);
     let changed = true;
     while (changed) {
         changed = false;
@@ -468,8 +477,13 @@ function recipe(a, b, result) {
 }
 
 function combine(a, b) {
+    // Absorbing rule, unconditional: touching nothing happens always
+    // produces nothing happens, overriding any real recipe.js entry.
+    if (a === NOTHING_HAPPENS || b === NOTHING_HAPPENS) return NOTHING_HAPPENS;
     const key = [a, b].sort().join("|");
-    return recipes[key] || null;
+    // Previously returned null here for "no recipe" — that's now the
+    // fallback that discovers nothing happens instead of a dead end.
+    return recipes[key] || NOTHING_HAPPENS;
 }
 
 // Was previously an O(recipeList.length) scan on every call. isExhausted()
@@ -687,7 +701,11 @@ function validateDiscoveryPlausibility() {
     const orderIndex = new Map(discoveryOrder.map((el, i) => [el, i]));
 
     for (const el of discovered) {
-        if (BASE_ELEMENTS.includes(el) || !universe.has(el)) continue;
+        // The wildcard has no fixed defining recipe by design — ANY
+        // undefined combo produces it, so "zero producers in recipeList"
+        // is exactly what legitimate play looks like for this one
+        // element, not a red flag.
+        if (BASE_ELEMENTS.includes(el) || el === NOTHING_HAPPENS || !universe.has(el)) continue;
 
         const producers = recipeList.filter(r => r.result === el);
         if (producers.length === 0) {
@@ -1327,6 +1345,7 @@ function makeElementTile(element) {
     if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
     if (greenHintPair && greenHintPair.includes(element)) button.classList.add("hint-pair");
     if (element === lastDiscovered) button.classList.add("just-found");
+    if (element === NOTHING_HAPPENS) button.classList.add("nothing-happens-tile");
 
     const icon = createElementIcon(element);
     if (icon) button.appendChild(icon);
@@ -1361,9 +1380,12 @@ function makeElementTile(element) {
         resetHintIdleTimer(); // "nothing has been combined" — this IS a combine attempt, whether it succeeds or not
 
         const resultEl = document.getElementById("result");
-        resultEl.textContent = result
-            ? `${chosenFirst} + ${element} = ${result}`
-            : `${chosenFirst} + ${element} = nothing happens`;
+        const isNothingSelfCombo = chosenFirst === NOTHING_HAPPENS && element === NOTHING_HAPPENS;
+        resultEl.textContent = isNothingSelfCombo
+            ? "Something happened, you just don't know what?"
+            : result
+                ? `${chosenFirst} + ${element} = ${result}`
+                : `${chosenFirst} + ${element} = nothing happens`;
 
         resultEl.classList.remove("flash");
         void resultEl.offsetWidth; // restart the animation even for repeat results
@@ -1715,6 +1737,26 @@ function buildDetailFragment(element, depths) {
     if (icon) heading.appendChild(icon);
     heading.appendChild(document.createTextNode(element));
     frag.appendChild(heading);
+
+    if (element === NOTHING_HAPPENS) {
+        const p1 = document.createElement("p");
+        p1.className = "tree-origin";
+        p1.textContent = "Made from any two elements that don't have a recipe together.";
+        frag.appendChild(p1);
+        const p2 = document.createElement("p");
+        p2.className = "tree-used-label";
+        p2.textContent = "Combines into:";
+        frag.appendChild(p2);
+        const p3 = document.createElement("p");
+        p3.className = "tree-origin";
+        p3.textContent = "Anything + nothing happens → nothing happens. Always.";
+        frag.appendChild(p3);
+        const note = document.createElement("p");
+        note.className = "tree-dead-note";
+        note.textContent = "Nothing happens + nothing happens is worth trying, for what it's worth.";
+        frag.appendChild(note);
+        return frag;
+    }
 
     const origin = recipeList.find(r => r.result === element);
     const originLine = document.createElement("p");
