@@ -4,12 +4,17 @@
 const ELEMENT_ICON_DIR = "element-icons/";
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
+// Mirrors the hardcoded wildcard element from game.js — always present
+// here too, with its own bespoke detail page instead of the normal
+// made-from/combines-into layout.
+const NOTHING_HAPPENS = "nothing happens";
+
 // ---------- Recipe data (same 2-ingredient model as the real game.js —
 // this reads the actual recipes.js, not the generalized custom-mod one) ----------
 
 const recipes = {};
 const recipeList = [];
-const universe = new Set(BASE_ELEMENTS);
+const universe = new Set([...BASE_ELEMENTS, NOTHING_HAPPENS]);
 const recipesByElement = new Map();
 const missingIcons = new Set();
 
@@ -166,6 +171,7 @@ function showElement(name) {
 }
 
 function showBrowse() {
+    stopNothingMessages();
     location.hash = "";
     document.getElementById("browse-view").classList.remove("hidden");
     document.getElementById("detail-view").classList.remove("active");
@@ -275,11 +281,31 @@ function renderBrowseByTier() {
         grid.className = "element-grid";
         elementsAtTier.forEach(el => grid.appendChild(makeElementTile(el)));
         container.appendChild(grid);
+
+        // Right after Starting elements — not truly "unreachable" (it's
+        // the fallback for every undefined combo), so it doesn't belong
+        // in that bucket, but it also isn't part of the normal tier
+        // system since no real recipe produces it.
+        if (t === 0) {
+            const nhHeading = document.createElement("p");
+            nhHeading.className = "tier-heading";
+            nhHeading.textContent = "The wildcard";
+            container.appendChild(nhHeading);
+            const nhSub = document.createElement("p");
+            nhSub.className = "tier-sub";
+            nhSub.textContent = "What you get from any combo that doesn't have a real recipe.";
+            container.appendChild(nhSub);
+            const nhGrid = document.createElement("div");
+            nhGrid.className = "element-grid";
+            nhGrid.appendChild(makeElementTile(NOTHING_HAPPENS));
+            container.appendChild(nhGrid);
+        }
     }
 
     // Anything in universe with no tier at all is unreachable from the
     // base elements — same concept as the main game's orphan report.
-    const unreachable = [...universe].filter(el => !tier.has(el)).sort((a, b) =>
+    // The wildcard is deliberately excluded here (see above).
+    const unreachable = [...universe].filter(el => !tier.has(el) && el !== NOTHING_HAPPENS).sort((a, b) =>
         a.localeCompare(b, undefined, { sensitivity: "base" })
     );
     if (unreachable.length > 0) {
@@ -304,6 +330,7 @@ function makeElementTile(el) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "element-tile";
+    if (el === NOTHING_HAPPENS) btn.classList.add("nothing-happens-tile");
 
     const img = document.createElement("img");
     img.hidden = true;
@@ -317,6 +344,27 @@ function makeElementTile(el) {
 
 // ---------- Detail view ----------
 
+const NOTHING_MESSAGES = [
+    "Nothing is here.",
+    "There's nothing to see.",
+    "It didn't exist.",
+    "You sure you're looking at the right page?",
+    "Still nothing.",
+    "Nope. Nothing.",
+    "Have you tried looking somewhere else?",
+    "This is the whole page.",
+    "Nothing happened, as advertised.",
+    "Come back later. It'll still be nothing.",
+];
+let nothingMessageInterval = null;
+
+function stopNothingMessages() {
+    if (nothingMessageInterval) {
+        clearInterval(nothingMessageInterval);
+        nothingMessageInterval = null;
+    }
+}
+
 function renderDetail(name) {
     document.getElementById("browse-view").classList.add("hidden");
     document.getElementById("detail-view").classList.add("active");
@@ -325,6 +373,40 @@ function renderDetail(name) {
 
     const icon = document.getElementById("detail-icon");
     tryLoadIcon(name, icon);
+
+    stopNothingMessages(); // always clear any previous rotation before deciding whether to start a new one
+
+    if (name === NOTHING_HAPPENS) {
+        document.getElementById("detail-tier").textContent = "The wildcard";
+
+        const madeFromEl = document.getElementById("detail-made-from");
+        const usedInEl = document.getElementById("detail-used-in");
+        const pathEl = document.getElementById("detail-path");
+        [madeFromEl, usedInEl, pathEl].forEach(el => { el.innerHTML = ""; });
+
+        const msg = document.createElement("p");
+        msg.className = "empty-note";
+        madeFromEl.appendChild(msg);
+        let i = 0;
+        msg.textContent = NOTHING_MESSAGES[0];
+        nothingMessageInterval = setInterval(() => {
+            i = (i + 1) % NOTHING_MESSAGES.length;
+            msg.textContent = NOTHING_MESSAGES[i];
+        }, 2200);
+
+        const usedNote = document.createElement("p");
+        usedNote.className = "empty-note";
+        usedNote.textContent = "Anything + nothing happens \u2192 nothing happens. Always.";
+        usedInEl.appendChild(usedNote);
+
+        const pathNote = document.createElement("p");
+        pathNote.className = "empty-note";
+        pathNote.textContent = "There isn't one \u2014 it's what you get instead of one.";
+        pathEl.appendChild(pathNote);
+
+        window.scrollTo(0, 0);
+        return;
+    }
 
     const { tier, bestRecipe } = tierData;
     const tierEl = document.getElementById("detail-tier");
@@ -458,6 +540,8 @@ function setupSearch() {
                 const t = tierData.tier;
                 badge.textContent = BASE_ELEMENTS.includes(el)
                     ? "start"
+                    : el === NOTHING_HAPPENS
+                    ? "wildcard"
                     : t.has(el)
                     ? `tier ${t.get(el)}`
                     : "unreachable";
