@@ -166,7 +166,9 @@ function tryLoadIcon(element, imgEl) {
 
 function showElement(name) {
     if (!universe.has(name)) return;
-    location.hash = `#${encodeURIComponent(name)}`;
+    // The wildcard gets the memorable secret phrase instead of its
+    // URL-encoded literal name (which would read as "nothing%20happens").
+    location.hash = name === NOTHING_HAPPENS ? "#nothing_happens" : `#${encodeURIComponent(name)}`;
     renderDetail(name);
 }
 
@@ -282,24 +284,9 @@ function renderBrowseByTier() {
         elementsAtTier.forEach(el => grid.appendChild(makeElementTile(el)));
         container.appendChild(grid);
 
-        // Right after Starting elements — not truly "unreachable" (it's
-        // the fallback for every undefined combo), so it doesn't belong
-        // in that bucket, but it also isn't part of the normal tier
-        // system since no real recipe produces it.
-        if (t === 0) {
-            const nhHeading = document.createElement("p");
-            nhHeading.className = "tier-heading";
-            nhHeading.textContent = "The wildcard";
-            container.appendChild(nhHeading);
-            const nhSub = document.createElement("p");
-            nhSub.className = "tier-sub";
-            nhSub.textContent = "What you get from any combo that doesn't have a real recipe.";
-            container.appendChild(nhSub);
-            const nhGrid = document.createElement("div");
-            nhGrid.className = "element-grid";
-            nhGrid.appendChild(makeElementTile(NOTHING_HAPPENS));
-            container.appendChild(nhGrid);
-        }
+        // The wildcard is deliberately NOT shown here — it's hidden on
+        // purpose, reachable only via the secret #nothing_happens hash,
+        // not through normal browsing.
     }
 
     // Anything in universe with no tier at all is unreachable from the
@@ -526,7 +513,7 @@ function setupSearch() {
         if (!query) return;
 
         [...universe]
-            .filter(el => el.toLowerCase().includes(query))
+            .filter(el => el !== NOTHING_HAPPENS && el.toLowerCase().includes(query))
             .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
             .slice(0, 30)
             .forEach(el => {
@@ -577,7 +564,8 @@ onReady(async () => {
     setupSortToggle();
 
     window.addEventListener("hashchange", () => {
-        const name = decodeURIComponent(location.hash.slice(1));
+        const raw = decodeURIComponent(location.hash.slice(1));
+        const name = raw === "nothing_happens" ? NOTHING_HAPPENS : raw;
         if (name && universe.has(name)) renderDetail(name);
         else showBrowse();
     });
@@ -596,7 +584,8 @@ onReady(async () => {
     document.getElementById("sort-toggle-row").hidden = false;
     renderBrowse();
 
-    const initial = decodeURIComponent(location.hash.slice(1));
+    const initialRaw = decodeURIComponent(location.hash.slice(1));
+    const initial = initialRaw === "nothing_happens" ? NOTHING_HAPPENS : initialRaw;
     if (initial && universe.has(initial)) renderDetail(initial);
 });
 
