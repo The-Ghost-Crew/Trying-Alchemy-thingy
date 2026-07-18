@@ -47,6 +47,11 @@ function elementIconSlug(element) {
 }
 
 function elementIconPath(element) {
+    // "nothing happens" is the one exception to both conventions below —
+    // a JPEG instead of an SVG, underscore instead of a hyphen — matching
+    // the actual file that exists for it, the only non-SVG icon in the set.
+    if (element === NOTHING_HAPPENS) return `${ELEMENT_ICON_DIR}nothing_happens.jpeg`;
+
     // encodeURIComponent, not just the raw slug — "#" specifically is a
     // URL fragment delimiter, so element-icons/C#.svg would make the
     // browser request "element-icons/C" and treat ".svg" as a page
