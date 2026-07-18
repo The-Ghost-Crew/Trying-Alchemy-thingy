@@ -382,6 +382,13 @@
   </section>
 </main>
 
-<script src="database.js"></script>
+<script>
+  // Same fix already proven necessary for game.js: a plain <script src>
+  // tag can sit in a visitor's browser cache indefinitely, so an update
+  // shipped here might never actually reach someone who already has the
+  // page open or cached. document.write keeps this synchronous and
+  // in-order, matching how database.js expects the DOM to already exist.
+  document.write('<script src="database.js?v=' + Date.now() + '"><\/script>');
+</script>
 </body>
 </html>
