@@ -331,6 +331,77 @@
     font-style: italic;
     font-size: 0.88rem;
     margin: 0;
+    transition: opacity 0.5s ease;
+  }
+
+  /* ---------- The Void ----------
+     "nothing happens" gets its own treatment: not a different product
+     bolted on, but the page of THIS manuscript that's damaged and
+     unfinished — same book, wrong page. Every other element's heading is
+     warm Cormorant Garamond; this one gets the site's own mono face
+     (normally reserved for small technical labels) blown up big, faded,
+     and uppercase — a stamped placeholder where an illuminated entry
+     should be. Scoped entirely under body.void so it can never leak onto
+     a normal element's page. */
+  body.void {
+    background: #08080b;
+    background-image:
+      radial-gradient(circle at 20% 15%, rgba(107, 95, 117, 0.05), transparent 45%),
+      radial-gradient(circle at 80% 85%, rgba(0, 0, 0, 0.5), transparent 50%);
+  }
+
+  body.void header a { color: #6b5f75; }
+  body.void #db-search { border-color: #1c1b20; }
+
+  body.void .panel-card { background: #0e0e12; border-color: #1a191e; }
+  body.void .section-label { color: #423f4a; }
+
+  body.void .detail-header h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 1.55rem;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+    color: #55535e;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* The one moment of drama: a redaction bar sweeps across the element's
+     own name once on arrival, as if the page is deciding whether to let
+     you read it, then clears for good. Everything else stays quiet. */
+  body.void .detail-header h2::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: #1a191e;
+    animation: void-redact-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+
+  @keyframes void-redact-sweep {
+    0% { transform: translateX(-100%); }
+    55% { transform: translateX(0); }
+    100% { transform: translateX(101%); }
+  }
+
+  body.void .detail-meta { color: #38363f; }
+  body.void .empty-note { color: #55535e; }
+  body.void .tree-origin, body.void .path-step { color: #423f4a; }
+  body.void .tree-origin a, body.void .path-step a { color: #6b5f75; }
+  body.void .path-step .step-num { color: #423f4a; }
+  body.void .path-step { border-bottom-color: #1a191e; }
+
+  /* A rare, slow guttering-candle flicker on the whole page — sparingly,
+     not constant, so it reads as unsettled rather than gimmicky. */
+  body.void #detail-view { animation: void-flicker 19s ease-in-out infinite; }
+
+  @keyframes void-flicker {
+    0%, 96%, 100% { opacity: 1; }
+    97.5% { opacity: 0.84; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body.void .detail-header h2::after { animation: none; display: none; }
+    body.void #detail-view { animation: none; }
   }
 </style>
 </head>
