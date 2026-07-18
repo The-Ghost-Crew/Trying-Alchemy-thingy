@@ -151,7 +151,9 @@ function resetRecipeData() {
     BASE_ELEMENTS.forEach(el => universe.add(el));
     conflictingRecipes.length = 0;
     speedTierData = null;   // tiers/step lengths recompute lazily against the fresh data
-    srDatalistBuilt = false;
+    srPreviewScope = null;
+    srPreviewData = null;
+    srDatalistKey = null;
 }
 
 let usedPrefetch = false;
@@ -1294,7 +1296,8 @@ function markJustDiscovered(element) {
 
 function updateProgressDisplays() {
     const count = validDiscoveredCount();
-    const total = universe.size;
+    let total = universe.size;
+    if (speedrunActive && speedrunConfig && Array.isArray(speedrunConfig.scope)) total = speedrunConfig.scope.length;
     const deadEnds = deadEndDiscoveredCount();
     const complete = count >= total && total > 0;
 
@@ -1346,7 +1349,14 @@ function makeElementTile(element) {
         }
 
         const chosenFirst = first;
-        const result = combine(chosenFirst, element);
+        let result = combine(chosenFirst, element);
+
+        // Premature-run scoping: a recipe whose result the player never
+        // unlocked in normal play doesn't exist for this run — the combo
+        // just fizzles, exactly like an undefined one.
+        if (speedrunActive && speedrunScopeSet && result && !speedrunScopeSet.has(result)) {
+            result = null;
+        }
         recordComboTiming();
         resetHintIdleTimer(); // "nothing has been combined" — this IS a combine attempt, whether it succeeds or not
 
@@ -2487,9 +2497,11 @@ document.addEventListener("keydown", event => {
 // where every function below was already verified against a naive
 // per-element walk) ----------
 
-let speedTierData = null; // { tier, bestRecipe, stepLength } — recomputed lazily after any recipe reload
+let speedTierData = null;
+let srPreviewScope = null; // Set of unlocked elements when previewing/starting below 100%; null = full game
+let srPreviewData = null; // { tier, bestRecipe, stepLength } — recomputed lazily after any recipe reload
 
-function computeFullTiers() {
+function computeFullTiers(filterSet) {
     const tier = new Map();
     const bestRecipe = new Map();
     BASE_ELEMENTS.forEach(el => tier.set(el, 0));
@@ -2497,6 +2509,7 @@ function computeFullTiers() {
     while (changed) {
         changed = false;
         recipeList.forEach(entry => {
+            if (filterSet && !filterSet.has(entry.result)) return;
             if (!tier.has(entry.a) || !tier.has(entry.b)) return;
             const candidate = Math.max(tier.get(entry.a), tier.get(entry.b)) + 1;
             if (!tier.has(entry.result) || candidate < tier.get(entry.result)) {
@@ -2552,8 +2565,14 @@ function ensureSpeedTierData() {
     return speedTierData;
 }
 
-function highestStepLengthElement() {
-    const data = ensureSpeedTierData();
+function computeScopedTierData(scopeSet) {
+    const { tier, bestRecipe } = computeFullTiers(scopeSet);
+    const stepLength = computeStepLengths(bestRecipe, tier);
+    return { tier, bestRecipe, stepLength };
+}
+
+function highestStepLengthElement(dataOverride) {
+    const data = dataOverride || ensureSpeedTierData();
     if (!data) return null;
     let best = null;
     let bestLen = -1;
@@ -2574,6 +2593,7 @@ const SPEEDRUN_WEBHOOK_URL = "https://discord.com/api/webhooks/15276180629356585
 // order); startedAt: ms timestamp of the FIRST tile click, not the Start
 // button — the run doesn't begin until the player actually plays.
 let speedrunConfig = null;
+let speedrunScopeSet = null;
 let speedrunRun = null;
 let speedrunTimerInterval = null;
 
@@ -2603,6 +2623,7 @@ function loadSpeedrunState() {
         const parsed = JSON.parse(raw);
         if (!parsed || parsed.active !== true || !parsed.config) return;
         speedrunConfig = parsed.config;
+        speedrunScopeSet = Array.isArray(speedrunConfig.scope) ? new Set(speedrunConfig.scope) : null;
         speedrunRun = parsed.run || { startedAt: null, splits: [], finished: false, finishMs: null };
         speedrunActive = true;
     } catch (e) {
@@ -2653,6 +2674,7 @@ function stopSpeedrunTimerInterval() {
 
 function speedrunTargetBuildSet() {
     if (!speedrunConfig || speedrunConfig.mode !== "target") return null;
+    if (Array.isArray(speedrunConfig.targetBuildResults)) return new Set(speedrunConfig.targetBuildResults);
     const data = ensureSpeedTierData();
     if (!data) return null;
     return new Set(buildOrderFor(speedrunConfig.target, data.bestRecipe).map(step => step.result));
@@ -2682,8 +2704,9 @@ function speedrunOnDiscovery() {
         }
     });
 
+    const runTotal = Array.isArray(speedrunConfig.scope) ? speedrunConfig.scope.length : universe.size;
     const done = speedrunConfig.mode === "completionist"
-        ? validDiscoveredCount() >= universe.size && universe.size > 0
+        ? validDiscoveredCount() >= runTotal && runTotal > 0
         : discovered.has(speedrunConfig.target);
 
     if (done) {
@@ -2693,6 +2716,9 @@ function speedrunOnDiscovery() {
         updateSpeedrunTimerDisplays();
         recordSpeedrunHistory();
         showSpeedrunFinishBlock();
+        // Surface the finish/name prompt immediately instead of leaving it
+        // parked in a tab the player isn't currently looking at.
+        document.querySelector('button.tab-button[data-tab="speedrun"]')?.click();
     }
 
     persistSpeedrunState();
@@ -2763,11 +2789,24 @@ async function startSpeedrun() {
     const mode = document.querySelector('input[name="sr-subtab"]:checked')?.value === "target" ? "target" : "completionist";
     const hintOn = document.querySelector('input[name="sr-hint"]:checked')?.value === "on";
 
+    // Board eligibility AND the run's scope are both decided by the NORMAL
+    // save at this exact moment, before the data swap. 99.9% is not 100%:
+    // strict >=, no rounding. A premature run is scoped to ONLY the
+    // elements the player had actually unlocked — its total, its splits,
+    // its usable recipes all measure against that set, not the full game
+    // they haven't seen yet.
+    const eligibleForBoard = validDiscoveredCount() >= universe.size && universe.size > 0;
+    const scope = eligibleForBoard
+        ? [...universe]
+        : [...new Set([...BASE_ELEMENTS, ...[...discovered].filter(el => universe.has(el))])];
+    const scopeSet = new Set(scope);
+
     let thresholds;
     let target = null;
+    let targetBuildResults = null;
 
     if (mode === "completionist") {
-        const total = universe.size;
+        const total = scope.length;
         const maxSplits = Math.max(1, Math.ceil(total / 100));
         const count = Number(document.getElementById("sr-comp-count")?.value) || 1;
         if (count < 1 || count > maxSplits) {
@@ -2792,11 +2831,18 @@ async function startSpeedrun() {
             setSpeedrunSettingsStatus("That's a starting element — it's already discovered the moment the run begins.", true);
             return;
         }
-        if (!data.tier.has(target)) {
+        if (!scopeSet.has(target)) {
+            setSpeedrunSettingsStatus("Premature runs can only target elements you've already unlocked in normal play.", true);
+            return;
+        }
+        const runData = eligibleForBoard ? data : computeScopedTierData(scopeSet);
+        if (!runData.tier.has(target)) {
             setSpeedrunSettingsStatus("That element is currently unreachable from the starting elements, so a run can never finish.", true);
             return;
         }
-        const steps = buildOrderFor(target, data.bestRecipe).length;
+        const buildOrder = buildOrderFor(target, runData.bestRecipe);
+        targetBuildResults = buildOrder.map(step => step.result);
+        const steps = buildOrder.length;
         const maxSplits = Math.max(1, Math.ceil(steps / 10));
         const count = Number(document.getElementById("sr-target-count")?.value) || 1;
         if (count < 1 || count > maxSplits) {
@@ -2815,13 +2861,8 @@ async function startSpeedrun() {
 
     setSpeedrunSettingsStatus("");
 
-    // Board eligibility is decided by the state of the NORMAL save at this
-    // exact moment — before the data swap below. Checking any later would
-    // be measuring the run's own dataset instead of the player's actual
-    // pre-run completion. 99.9% is not 100%: strict >=, no rounding.
-    const eligibleForBoard = validDiscoveredCount() >= universe.size && universe.size > 0;
-
-    speedrunConfig = { mode, target, thresholds, hintOn, eligibleForBoard };
+    speedrunConfig = { mode, target, thresholds, hintOn, eligibleForBoard, scope, targetBuildResults };
+    speedrunScopeSet = scopeSet;
     speedrunRun = { startedAt: null, splits: [], finished: false, finishMs: null };
     speedrunActive = true;
 
@@ -2886,6 +2927,7 @@ function endSpeedrun() {
     resetProgress();
     speedrunActive = false;
     speedrunConfig = null;
+    speedrunScopeSet = null;
     speedrunRun = null;
     persistSpeedrunState();
 
@@ -3190,10 +3232,16 @@ function refreshSpeedrunSettingsUi() {
         }
     }
 
-    // Completionist
-    const compMax = Math.max(1, Math.ceil(total / 100));
+    // Completionist — a premature preview measures against the player's
+    // own unlocked set, not the full game they haven't seen yet.
+    srPreviewScope = count >= total ? null : new Set([...BASE_ELEMENTS, ...[...discovered].filter(el => universe.has(el))]);
+    srPreviewData = srPreviewScope ? computeScopedTierData(srPreviewScope) : data;
+    const compTotal = srPreviewScope ? srPreviewScope.size : total;
+    const compMax = Math.max(1, Math.ceil(compTotal / 100));
     const compMaxNote = document.getElementById("sr-comp-max");
-    if (compMaxNote) compMaxNote.textContent = `1 to ${compMax} (that's ${total} elements ÷ 100, rounded up)`;
+    if (compMaxNote) compMaxNote.textContent = srPreviewScope
+        ? `1 to ${compMax} (your ${compTotal} unlocked elements ÷ 100, rounded up)`
+        : `1 to ${compMax} (that's ${total} elements ÷ 100, rounded up)`;
     const compCount = document.getElementById("sr-comp-count");
     if (compCount) {
         compCount.max = String(compMax);
@@ -3203,7 +3251,7 @@ function refreshSpeedrunSettingsUi() {
     // Target — default to the current highest-step-length element
     const targetInput = document.getElementById("sr-target-input");
     if (targetInput && !targetInput.value) {
-        const def = highestStepLengthElement();
+        const def = highestStepLengthElement(srPreviewData);
         if (def) targetInput.value = def;
     }
     refreshTargetDependentSettings();
@@ -3214,7 +3262,7 @@ function refreshSpeedrunSettingsUi() {
 }
 
 function refreshTargetDependentSettings() {
-    const data = ensureSpeedTierData();
+    const data = srPreviewData || ensureSpeedTierData();
     if (!data) return;
     const target = (document.getElementById("sr-target-input")?.value || "").trim();
     const info = document.getElementById("sr-target-steps");
@@ -3237,15 +3285,17 @@ function refreshTargetDependentSettings() {
     }
 }
 
-let srDatalistBuilt = false;
+let srDatalistKey = null;
 function rebuildDatalist() {
-    if (srDatalistBuilt) return;
+    const key = srPreviewScope ? `scope:${srPreviewScope.size}` : `full:${universe.size}`;
+    if (srDatalistKey === key) return;
     const list = document.getElementById("sr-target-datalist");
     if (!list) return;
     list.innerHTML = "";
-    const data = ensureSpeedTierData();
+    const data = srPreviewData || ensureSpeedTierData();
     if (!data) return;
-    [...universe]
+    const pool = srPreviewScope ? [...srPreviewScope] : [...universe];
+    pool
         .filter(el => !BASE_ELEMENTS.includes(el) && data.tier.has(el))
         .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
         .forEach(el => {
@@ -3253,7 +3303,7 @@ function rebuildDatalist() {
             opt.value = el;
             list.appendChild(opt);
         });
-    srDatalistBuilt = true;
+    srDatalistKey = key;
 }
 
 function rebuildManualIfVisible() {
@@ -3262,14 +3312,14 @@ function rebuildManualIfVisible() {
     if (compContainer) compContainer.hidden = !compManual;
     if (compManual) {
         const count = Number(document.getElementById("sr-comp-count")?.value) || 1;
-        rebuildManualSplitInputs("sr-comp-manual", count, universe.size, "element count");
+        rebuildManualSplitInputs("sr-comp-manual", count, srPreviewScope ? srPreviewScope.size : universe.size, "element count");
     }
 
     const targetManual = document.querySelector('input[name="sr-target-mode"]:checked')?.value === "manual";
     const targetContainer = document.getElementById("sr-target-manual");
     if (targetContainer) targetContainer.hidden = !targetManual;
     if (targetManual) {
-        const data = ensureSpeedTierData();
+        const data = srPreviewData || ensureSpeedTierData();
         const target = (document.getElementById("sr-target-input")?.value || "").trim();
         if (data && universe.has(target) && data.tier.has(target)) {
             const steps = buildOrderFor(target, data.bestRecipe).length;
