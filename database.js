@@ -342,10 +342,13 @@ const NOTHING_MESSAGES = [
     "No record exists.",
     "Still nothing.",
     "The archivist made no note here.",
-    "Have you tried looking somewhere else?",
+    "Someone erased this before you arrived.",
     "Struck from the record.",
     "This is the whole page.",
+    "Don't stare too long.",
     "Some entries are better left blank.",
+    "It's still watching this space.",
+    "You weren't the first to come looking.",
     "Nothing happened, as advertised.",
     "You weren't meant to find this page.",
     "The book has nothing more to say.",
@@ -395,12 +398,12 @@ function renderDetail(name) {
 
         const usedNote = document.createElement("p");
         usedNote.className = "empty-note";
-        usedNote.textContent = "Anything + nothing happens \u2192 nothing happens. Always.";
+        usedNote.textContent = "Anything it touches becomes this too. There is no exception.";
         usedInEl.appendChild(usedNote);
 
         const pathNote = document.createElement("p");
         pathNote.className = "empty-note";
-        pathNote.textContent = "There isn't one \u2014 it's what you get instead of one.";
+        pathNote.textContent = "There is no path here. There was never meant to be one.";
         pathEl.appendChild(pathNote);
 
         window.scrollTo(0, 0);
