@@ -145,6 +145,10 @@ function elementIconSlug(element) {
 }
 
 function elementIconPath(element) {
+    // "nothing happens" is the one exception — a JPEG instead of an SVG,
+    // underscore instead of a hyphen — matching the actual file that
+    // exists for it, mirroring the same special case in game.js.
+    if (element === NOTHING_HAPPENS) return `${ELEMENT_ICON_DIR}nothing_happens.jpeg`;
     return `${ELEMENT_ICON_DIR}${encodeURIComponent(elementIconSlug(element))}.svg`;
 }
 
