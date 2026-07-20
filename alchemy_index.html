@@ -311,12 +311,21 @@
      able to make a single tile dozens of lines tall. The full name is
      never actually lost: it's in the title attribute (tooltip/long-press)
      and shown in full wherever there's room — the Family Tree card below,
-     the combine result line, any detail view. */
+     the combine result line, any detail view.
+     A FIXED pixel max-width, not a percentage — a percentage here has to
+     resolve through an inline-flex container's own shrink-to-fit sizing,
+     which is exactly the kind of thing that can silently fail to actually
+     constrain anything depending on how a given browser resolves it. A
+     hard pixel cap has no such ambiguity: text past 190px truncates,
+     full stop, regardless of any flex/percentage calculation. */
   .element-tile .tile-label {
-    min-width: 0;
+    display: inline-block;
+    min-width: 0; /* critical — min-width always wins over max-width in a conflict, so without overriding the automatic content-based minimum, a 1600-character name's own min-content size would beat the 190px cap below and defeat this entire rule */
+    max-width: 190px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    vertical-align: middle;
   }
 
   .element-tile .element-icon {
