@@ -636,9 +636,22 @@ function setupCustomLoad() {
     const loadBtn = document.getElementById("custom-load-btn");
     const resetBtn = document.getElementById("custom-reset-btn");
     const fileInput = document.getElementById("custom-file-input");
+    const fileTrigger = document.getElementById("custom-file-trigger");
+    const filenameEl = document.getElementById("custom-file-filename");
 
     toggleBtn?.addEventListener("click", () => {
         panel.hidden = !panel.hidden;
+    });
+
+    // Same fix already proven in the Mods system: a hidden native input
+    // triggered via a styled button, with no accept attribute — that
+    // attribute is specifically what makes iOS Safari default to the
+    // Photo Library / Take Photo sheet instead of going straight to the
+    // Files picker. Extension validation happens entirely in JS instead.
+    fileTrigger?.addEventListener("click", () => fileInput?.click());
+    fileInput?.addEventListener("change", () => {
+        const file = fileInput.files?.[0];
+        if (filenameEl) filenameEl.textContent = file ? file.name : "No file selected";
     });
 
     loadBtn?.addEventListener("click", async () => {
@@ -709,6 +722,8 @@ function setupCustomLoad() {
         setCustomLoadStatus("", false);
         resetBtn.hidden = true;
         if (fileInput) fileInput.value = "";
+        const filenameEl = document.getElementById("custom-file-filename");
+        if (filenameEl) filenameEl.textContent = "No file selected";
     });
 }
 
