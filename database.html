@@ -91,12 +91,18 @@
 
   #search-results:empty { display: none; }
 
+  /* A FIXED pixel max-width, not a percentage — see the matching note in
+     alchemy_index.html for why a percentage here can't be trusted to
+     actually constrain anything inside a flex/inline-flex container. */
   .element-tile .tile-label,
   .search-result-item .tile-label {
-    min-width: 0;
+    display: inline-block;
+    min-width: 0; /* critical — min-width always wins over max-width in a conflict; without this override, an extreme name's own content-based minimum would beat the cap below */
+    max-width: 190px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    vertical-align: middle;
   }
 
   .search-result-item {
