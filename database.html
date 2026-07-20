@@ -62,7 +62,6 @@
     max-width: 720px;
     margin: 16px auto 0;
     padding: 0 16px;
-    position: relative;
   }
 
   #db-search {
@@ -76,27 +75,12 @@
     font-size: 0.95rem;
   }
 
-  #search-results {
-    position: absolute;
-    left: 16px;
-    right: 16px;
-    top: calc(100% + 4px);
-    background: var(--panel-raised);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    max-height: 320px;
-    overflow-y: auto;
-    z-index: 10;
-  }
-
-  #search-results:empty { display: none; }
-
-  /* Deliberately NOT flex children anymore — neither .element-tile nor
-     .search-result-item use display:flex below. Flex-item sizing is
-     exactly the kind of thing that can differ between rendering engines,
-     and this bug persisted across two flex-based attempts. Plain
-     inline-block (tiles) and float (the search badge) are among the
-     oldest, most consistently-implemented layout patterns in CSS. */
+  /* Deliberately NOT a flex child — see the matching reasoning wherever
+     element-tile styling is discussed elsewhere in this file. Flex-item
+     sizing is exactly the kind of thing that can differ between
+     rendering engines, and this bug persisted across two flex-based
+     attempts. Plain inline-block is one of the oldest, most
+     consistently-implemented layout patterns in CSS. */
   .element-tile .tile-label {
     display: inline-block;
     max-width: 190px;
@@ -105,34 +89,6 @@
     white-space: nowrap;
     vertical-align: middle;
   }
-
-  .search-result-item .tile-label {
-    display: block;
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .search-result-item {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: none;
-    border-bottom: 1px solid var(--border);
-    color: var(--text);
-    padding: 10px 14px;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
-    cursor: pointer;
-    overflow: hidden; /* contains the floated badge below, so the row's own border/background still wrap it correctly */
-  }
-
-  .search-result-item .tier-badge { float: right; margin-left: 8px; }
-
-  .search-result-item:last-child { border-bottom: none; }
-  .search-result-item:hover { background: var(--panel); }
 
   main {
     max-width: 720px;
@@ -201,12 +157,6 @@
 
   .element-tile.nothing-happens-tile:hover { border-color: #8a8ea6; color: #a5a9bf; }
   .element-tile img { width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; }
-
-  .tier-badge {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.68rem;
-    color: var(--text-muted);
-  }
 
   #sort-toggle-row { display: flex; gap: 8px; margin-bottom: 4px; }
 
@@ -603,7 +553,6 @@
 
 <div id="search-bar">
   <input type="text" id="db-search" placeholder="Search elements…" autocomplete="off">
-  <div id="search-results"></div>
 </div>
 
 <main>
