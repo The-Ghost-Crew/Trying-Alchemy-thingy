@@ -15,6 +15,7 @@
 
 // ---------- Wizard config state ----------
 
+let configuredMinArity = 2;
 let configuredMaxArity = 2;
 let startingElements = ["air", "water", "fire", "earth"];
 const moddedElements = new Set(); // introduced by the uploaded file specifically, not the base game
@@ -50,8 +51,8 @@ function recipe(...args) {
     const ingredients = args.slice(0, -1).map(x => String(x).trim());
     const arity = ingredients.length;
 
-    if (arity > configuredMaxArity) {
-        skippedLines.push({ args, reason: `uses ${arity} ingredients, but the configured max is ${configuredMaxArity}` });
+    if (arity < configuredMinArity || arity > configuredMaxArity) {
+        skippedLines.push({ args, reason: `uses ${arity} ingredients, outside the configured range of ${configuredMinArity} to ${configuredMaxArity}` });
         return;
     }
 
@@ -151,8 +152,7 @@ function computeReachable() {
 
 let discovered = new Set();
 let discoveryOrder = [];
-let first = null;        // classic 2-tap selection (maxArity === 2)
-let combineTray = [];    // multi-select tray (maxArity > 2)
+let combineTray = [];    // selection tray for ALL modes now — classic 2-tap is just the fixed-arity=2 case of this
 let treeDirty = true;    // tree list rebuilt lazily on tab open, same as main
 
 // ---------- Sound system (copied from game.js) ----------
@@ -516,7 +516,7 @@ function attemptCombine(ingredients) {
 function makeElementTile(element) {
     const button = document.createElement("button");
     button.className = "element-tile";
-    const isSelected = configuredMaxArity === 2 ? element === first : combineTray.includes(element);
+    const isSelected = combineTray.includes(element);
     button.setAttribute("aria-pressed", isSelected ? "true" : "false");
     if (isSelected) button.classList.add("selected");
     if (isExhausted(element)) button.classList.add("dead-end");
@@ -528,23 +528,23 @@ function makeElementTile(element) {
     button.appendChild(document.createTextNode(element));
 
     button.onclick = () => {
-        if (configuredMaxArity === 2) {
-            if (first === null) {
-                first = element;
-                render();
-                return;
-            }
-            const chosenFirst = first;
-            first = null;
-            attemptCombine([chosenFirst, element]);
-        } else {
-            // Tray mode: duplicates allowed on purpose — water + water is
-            // a legitimate combo, so the same tile can be added repeatedly
-            // up to the configured cap.
-            if (combineTray.length >= configuredMaxArity) return;
-            combineTray.push(element);
+        // Duplicates allowed on purpose — water + water is a legitimate
+        // combo, so the same tile can be added repeatedly up to the cap.
+        if (combineTray.length >= configuredMaxArity) return;
+        combineTray.push(element);
+        renderTray();
+        render(); // refresh selected highlighting on tiles
+
+        // Fixed arity (min === max, classic 2-tap included as the N=2
+        // case of this) needs no Combine button — the moment the tray
+        // reaches exactly that count, there's nothing ambiguous left to
+        // wait for, so it fires immediately, same spirit as the original
+        // 2-tap auto-combine.
+        if (configuredMinArity === configuredMaxArity && combineTray.length === configuredMinArity) {
+            const picked = [...combineTray];
+            combineTray = [];
+            attemptCombine(picked);
             renderTray();
-            render(); // refresh selected highlighting on tiles
         }
     };
 
@@ -580,18 +580,26 @@ function renderTray() {
         tray.appendChild(chip);
     });
 
-    btn.disabled = combineTray.length < 2;
+    btn.disabled = combineTray.length < configuredMinArity;
 }
 
 function setupCombineUI() {
     const btn = document.getElementById("combine-btn");
     const tray = document.getElementById("combine-tray");
-    if (configuredMaxArity > 2) {
-        if (btn) btn.hidden = false;
-        if (tray) tray.hidden = false;
-    }
+    const isClassicTwo = configuredMinArity === 2 && configuredMaxArity === 2;
+    const isRange = configuredMinArity !== configuredMaxArity;
+
+    // Classic 2-in-2-out keeps the original minimal UI: no tray, tiles
+    // just highlight as you pick them, exactly as it always has.
+    if (!isClassicTwo && tray) tray.hidden = false;
+
+    // Only a genuine range needs an explicit button — a fixed arity
+    // (however large) auto-fires the moment enough tiles are picked, so
+    // there's nothing for a button to do.
+    if (isRange && btn) btn.hidden = false;
+
     btn?.addEventListener("click", () => {
-        if (combineTray.length < 2) return;
+        if (combineTray.length < configuredMinArity) return;
         attemptCombine([...combineTray]);
         combineTray = [];
         renderTray();
@@ -1128,7 +1136,26 @@ async function handleLoadCustom() {
         return;
     }
 
-    configuredMaxArity = Number(document.getElementById("max-arity-select")?.value) || 2;
+    const minRaw = document.getElementById("min-arity-select")?.value;
+    const maxRaw = document.getElementById("max-arity-select")?.value;
+    const minParsed = Number(minRaw);
+    const maxParsed = Number(maxRaw);
+
+    if (!Number.isInteger(minParsed) || minParsed < 2 || minParsed > 100) {
+        showLoadStatus(`Minimum combo size has to be a whole number between 2 and 100 — got "${minRaw}".`, true);
+        return;
+    }
+    if (!Number.isInteger(maxParsed) || maxParsed < 2 || maxParsed > 100) {
+        showLoadStatus(`Maximum combo size has to be a whole number between 2 and 100 — got "${maxRaw}".`, true);
+        return;
+    }
+
+    configuredMinArity = minParsed;
+    configuredMaxArity = maxParsed;
+    if (configuredMinArity > configuredMaxArity) {
+        showLoadStatus(`Minimum combo size (${configuredMinArity}) can't be greater than maximum (${configuredMaxArity}).`, true);
+        return;
+    }
     const includeBase = document.querySelector('input[name="include-base"]:checked')?.value === "yes";
     hintModeEnabled = document.querySelector('input[name="hint-mode"]:checked')?.value === "yes";
     orderedComponents = document.querySelector('input[name="ordered-components"]:checked')?.value === "yes";
@@ -1212,7 +1239,6 @@ function launchCustomGame() {
         });
     }
 
-    first = null;
     combineTray = [];
     treeDirty = true;
     buildRecipesByElement();
