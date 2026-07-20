@@ -91,6 +91,14 @@
 
   #search-results:empty { display: none; }
 
+  .element-tile .tile-label,
+  .search-result-item .tile-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .search-result-item {
     display: block;
     width: 100%;
@@ -193,6 +201,59 @@
 
   #sort-toggle-row { display: flex; gap: 8px; margin-bottom: 4px; }
 
+  #custom-load-toggle {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin: 10px 0 16px;
+  }
+
+  #custom-load-toggle:hover { color: var(--gold); }
+
+  #custom-load-panel {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+
+  .custom-load-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--text);
+    margin: 8px 0 12px;
+    cursor: pointer;
+  }
+
+  .custom-load-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  #custom-file-input { font-size: 0.82rem; color: var(--text-muted); max-width: 100%; }
+
+  #custom-load-btn, #custom-reset-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    background: var(--panel);
+    border: 1px solid var(--gold-soft);
+    color: var(--gold);
+    border-radius: 20px;
+    padding: 7px 16px;
+    cursor: pointer;
+  }
+
+  #custom-reset-btn { border-color: var(--border); color: var(--text-muted); }
+
+  #custom-load-status { margin-top: 10px; }
+
   .sort-toggle {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.75rem;
@@ -278,7 +339,8 @@
     font-size: 1.9rem;
     color: var(--parchment);
     margin: 0;
-    min-width: 0; /* overrides the flex item's default content-based minimum width — without this, overflow-wrap has no effect and the heading just grows past the container instead of wrapping */
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .detail-meta {
@@ -303,6 +365,7 @@
     color: var(--text-muted);
     font-size: 0.85rem;
     font-family: 'IBM Plex Mono', monospace;
+    overflow-wrap: anywhere;
   }
 
   .tree-origin:last-child { margin-bottom: 0; }
@@ -319,7 +382,7 @@
     border-bottom: 1px solid var(--border);
   }
 
-  .path-step > span:last-child { min-width: 0; }
+  .path-step > span:last-child { min-width: 0; overflow-wrap: anywhere; }
 
   .path-step:last-child { border-bottom: none; }
   .path-step .step-num { color: var(--gold); flex-shrink: 0; }
@@ -472,6 +535,19 @@
       <button class="sort-toggle active" data-sort="tier" type="button">By Tier</button>
       <button class="sort-toggle" data-sort="steps" type="button">By Step Length</button>
     </div>
+
+    <button id="custom-load-toggle" type="button" hidden>Analyze a custom recipe file instead</button>
+    <div id="custom-load-panel" hidden>
+      <p class="tier-sub">Upload a <code>.js</code> file in the same <code>recipe(a, b, result)</code> format used by the Mods system — including mod files that use more than two ingredients per recipe.</p>
+      <label class="custom-load-check"><input type="checkbox" id="custom-include-base"> Merge with the official recipes.js</label>
+      <div class="custom-load-row">
+        <input type="file" id="custom-file-input" accept=".js">
+        <button id="custom-load-btn" type="button">Load</button>
+        <button id="custom-reset-btn" type="button" hidden>Reset to official data</button>
+      </div>
+      <p id="custom-load-status" class="empty-note"></p>
+    </div>
+
     <div id="tier-list"></div>
   </section>
 
