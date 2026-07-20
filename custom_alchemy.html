@@ -576,12 +576,21 @@
 
   /* Wizard */
   .wizard-card { border-radius: 8px; margin-bottom: 16px; }
-  .wizard-card select, .wizard-card input[type="text"] {
+  .wizard-card select, .wizard-card input[type="text"], .wizard-card input[type="number"] {
     font-family: 'Inter', sans-serif; font-size: 0.9rem;
     background: var(--panel); border: 1px solid var(--border);
     color: var(--text); padding: 8px 12px; border-radius: 6px;
   }
-  .wizard-card select { width: 100%; }
+  .wizard-card select, .wizard-card input[type="number"] { width: 100%; margin-bottom: 12px; }
+  .wizard-sublabel {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin: 0 0 6px;
+  }
   .radio-row { display: flex; gap: 20px; }
   .radio-row label { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--text); cursor: pointer; }
   .checkbox-row label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--text); cursor: pointer; }
@@ -633,17 +642,13 @@
 
   <div class="about-block panel-card wizard-card">
     <h2>Ruleset</h2>
-    <p>Classic mode is two elements making one: <code>X + Y = Z</code>. Choosing a higher number allows recipes with more ingredients (up to 9), and adds a "Combine" tray in the game for mixing more than two at once.</p>
-    <select id="max-arity-select">
-      <option value="2" selected>2 (classic — X + Y = Z)</option>
-      <option value="3">Up to 3 (W + X + Y = Z)</option>
-      <option value="4">Up to 4</option>
-      <option value="5">Up to 5</option>
-      <option value="6">Up to 6</option>
-      <option value="7">Up to 7</option>
-      <option value="8">Up to 8</option>
-      <option value="9">Up to 9</option>
-    </select>
+    <p>Classic mode is two elements making one: <code>X + Y = Z</code>. Set a minimum and maximum to allow recipes with more ingredients — type any number from 2 to 100. If minimum and maximum are the <strong>same number</strong>, combining fires automatically the moment that many elements are picked — no separate button needed, exactly like classic 2-tap already works. Only a genuine range (like 2 to 5) needs an explicit "Combine" button, since the game can't know when you're done picking.</p>
+
+    <label for="min-arity-select" class="wizard-sublabel">Minimum (2&ndash;100)</label>
+    <input type="number" id="min-arity-select" min="2" max="100" step="1" value="2" inputmode="numeric">
+
+    <label for="max-arity-select" class="wizard-sublabel">Maximum (2&ndash;100)</label>
+    <input type="number" id="max-arity-select" min="2" max="100" step="1" value="2" inputmode="numeric">
 
     <p style="margin-top: 16px;">Multi-product recipes work automatically — if your file has <code>recipe("wood","human","tool")</code> and <code>recipe("wood","human","house")</code>, combining wood + human makes both at once. Nothing to enable here.</p>
 
