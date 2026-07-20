@@ -2,6 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Best-effort only: game.js is cache-busted with its own ?v= query
+     param and always loads fresh, but this HTML document itself has no
+     equivalent mechanism — a browser (or an intermediate cache) can still
+     serve a stale copy of THIS page's markup/CSS even while game.js is
+     current, which is exactly the kind of split that makes a shipped fix
+     look like it never arrived. These headers ask for the freshest copy;
+     they are not guaranteed to override a host's own server-level cache
+     headers, but they cost nothing and can only help. -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script>
   // Kicked off as early as physically possible — before fonts, before
   // game.js even downloads — so the network round-trip overlaps with the
@@ -277,6 +288,11 @@
   #dead-end-section .section-label { color: var(--red); }
 
   .element-tile {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-width: 0; /* flex item of #elements/#dead-end-elements — without this, an extreme name (a 1600-digit factorial result, say) has nowhere to shrink to and just overflows past the viewport instead of wrapping */
     font-family: 'Inter', sans-serif;
     font-size: 0.9rem;
     background: var(--panel);
@@ -289,6 +305,19 @@
   }
 
   .element-tile:hover { border-color: var(--gold-soft); }
+
+  /* Compact views (grid tiles, search-style lists) truncate with an
+     ellipsis rather than wrapping — an absurdly long name shouldn't be
+     able to make a single tile dozens of lines tall. The full name is
+     never actually lost: it's in the title attribute (tooltip/long-press)
+     and shown in full wherever there's room — the Family Tree card below,
+     the combine result line, any detail view. */
+  .element-tile .tile-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .element-tile .element-icon {
     width: 18px;
@@ -398,6 +427,7 @@
     border-radius: 6px;
     padding: 10px 14px;
     margin: 0 0 16px;
+    overflow-wrap: anywhere; /* stronger than the inherited break-word — that value doesn't reduce min-content size, so an extreme result (a 1600-digit factorial, say) could still force this box wider than its container instead of actually wrapping */
   }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -641,6 +671,7 @@
     font-size: 1.3rem;
     margin: 0 0 4px;
     color: var(--parchment);
+    overflow-wrap: anywhere;
   }
 
   .tree-card h3 .element-icon {
