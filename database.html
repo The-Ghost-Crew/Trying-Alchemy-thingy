@@ -91,18 +91,27 @@
 
   #search-results:empty { display: none; }
 
-  /* A FIXED pixel max-width, not a percentage — see the matching note in
-     alchemy_index.html for why a percentage here can't be trusted to
-     actually constrain anything inside a flex/inline-flex container. */
-  .element-tile .tile-label,
-  .search-result-item .tile-label {
+  /* Deliberately NOT flex children anymore — neither .element-tile nor
+     .search-result-item use display:flex below. Flex-item sizing is
+     exactly the kind of thing that can differ between rendering engines,
+     and this bug persisted across two flex-based attempts. Plain
+     inline-block (tiles) and float (the search badge) are among the
+     oldest, most consistently-implemented layout patterns in CSS. */
+  .element-tile .tile-label {
     display: inline-block;
-    min-width: 0; /* critical — min-width always wins over max-width in a conflict; without this override, an extreme name's own content-based minimum would beat the cap below */
     max-width: 190px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     vertical-align: middle;
+  }
+
+  .search-result-item .tile-label {
+    display: block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .search-result-item {
@@ -117,15 +126,13 @@
     font-family: 'Inter', sans-serif;
     font-size: 0.9rem;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 0;
+    overflow: hidden; /* contains the floated badge below, so the row's own border/background still wrap it correctly */
   }
+
+  .search-result-item .tier-badge { float: right; margin-left: 8px; }
 
   .search-result-item:last-child { border-bottom: none; }
   .search-result-item:hover { background: var(--panel); }
-  .search-result-item .tier-badge { margin-left: auto; }
 
   main {
     max-width: 720px;
@@ -172,9 +179,6 @@
   }
 
   .element-tile {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
     font-family: 'Inter', sans-serif;
     font-size: 0.88rem;
     background: var(--panel);
@@ -184,7 +188,6 @@
     padding: 7px 14px;
     cursor: pointer;
     max-width: 100%;
-    min-width: 0; /* same flex min-width trap as the detail heading — the text here is a bare text node (an anonymous flex item), which can't be targeted directly, so the fix goes on the container itself */
   }
 
   .element-tile:hover { border-color: var(--gold-soft); }
@@ -197,7 +200,7 @@
   }
 
   .element-tile.nothing-happens-tile:hover { border-color: #8a8ea6; color: #a5a9bf; }
-  .element-tile img { width: 16px; height: 16px; flex-shrink: 0; }
+  .element-tile img { width: 16px; height: 16px; vertical-align: middle; margin-right: 6px; }
 
   .tier-badge {
     font-family: 'IBM Plex Mono', monospace;
@@ -273,6 +276,61 @@
   #custom-reset-btn { border-color: var(--border); color: var(--text-muted); }
 
   #custom-load-status { margin-top: 10px; }
+
+  #ideas-toggle {
+    display: block;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin: 0 0 16px;
+  }
+
+  #ideas-toggle:hover { color: var(--gold); }
+
+  #ideas-panel {
+    background: var(--panel-raised);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+  }
+
+  #ideas-panel .wizard-sublabel { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  #ideas-panel select {
+    font-family: 'Inter', sans-serif; font-size: 0.9rem;
+    background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 12px; border-radius: 6px;
+  }
+
+  #ideas-find-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    background: var(--panel);
+    border: 1px solid var(--gold-soft);
+    color: var(--gold);
+    border-radius: 20px;
+    padding: 7px 16px;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+
+  #ideas-status { margin-top: 10px; }
+
+  .idea-row {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--text);
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .idea-row:last-child { border-bottom: none; }
 
   .sort-toggle {
     font-family: 'IBM Plex Mono', monospace;
@@ -570,6 +628,18 @@
         <button id="custom-reset-btn" type="button" hidden>Reset to official data</button>
       </div>
       <p id="custom-load-status" class="empty-note"></p>
+    </div>
+
+    <button id="ideas-toggle" type="button" hidden>Search for recipe ideas</button>
+    <div id="ideas-panel" hidden>
+      <p class="tier-sub">Pick a tier and a number of ingredients — this lists every valid combination from that tier's eligible ingredient pool that doesn't have a recipe yet. An idea only counts elements at a lower tier than the one you pick, matching how tiers already work everywhere else on this page.</p>
+      <div class="custom-load-row">
+        <label class="wizard-sublabel" style="margin:0;">Tier<select id="ideas-tier-select"></select></label>
+        <label class="wizard-sublabel" style="margin:0;">Ingredients<select id="ideas-arity-select"></select></label>
+      </div>
+      <button id="ideas-find-btn" type="button">Find ideas</button>
+      <p id="ideas-status" class="empty-note"></p>
+      <div id="ideas-results"></div>
     </div>
 
     <div id="tier-list"></div>
