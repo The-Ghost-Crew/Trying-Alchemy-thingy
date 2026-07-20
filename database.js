@@ -9,37 +9,56 @@ const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 // made-from/combines-into layout.
 const NOTHING_HAPPENS = "nothing happens";
 
-// ---------- Recipe data (same 2-ingredient model as the real game.js —
-// this reads the actual recipes.js, not the generalized custom-mod one) ----------
+// ---------- Recipe data ----------
+//
+// Generalized to N ingredients (>= 2), matching what a mod file uploaded
+// through the Mods system can define — not just the fixed 2-ingredient
+// shape of the real recipes.js. There's deliberately no sorted-key lookup
+// dict here: this tool only ever needs to CATALOG relationships (made
+// from / combines into / tiers), never decide a single winning result
+// the way actual gameplay code has to. That means base-game and uploaded
+// recipes can simply accumulate together — no override tracking needed,
+// and ordered-component mods (X+Y=A, Y+X=B as two genuinely different
+// recipes) are preserved correctly for free, since nothing ever sorts or
+// merges by key.
 
-const recipes = {};
 const recipeList = [];
 const universe = new Set([...BASE_ELEMENTS, NOTHING_HAPPENS]);
 const recipesByElement = new Map();
 const missingIcons = new Set();
+const seenRecipeSignatures = new Set(); // exact (ingredients in given order + result) dedup
 
 function indexRecipe(el, entry) {
     if (!recipesByElement.has(el)) recipesByElement.set(el, []);
     recipesByElement.get(el).push(entry);
 }
 
-function recipe(a, b, result) {
-    const aT = a.trim();
-    const bT = b.trim();
-    const resultT = result.trim();
-    const key = [aT, bT].sort().join("|");
+function recipe(...args) {
+    if (args.length < 3) return; // needs at least 2 ingredients + 1 result
 
-    if (recipes[key]) return; // silently skip a duplicate, matching the main game's own tolerant behavior
+    const ingredients = args.slice(0, -1).map(x => String(x).trim());
+    const result = String(args[args.length - 1]).trim();
 
-    recipes[key] = resultT;
-    const entry = { a: aT, b: bT, result: resultT };
+    const signature = ingredients.join("|") + "=>" + result;
+    if (seenRecipeSignatures.has(signature)) return; // exact duplicate — skip, don't clutter the listings
+    seenRecipeSignatures.add(signature);
+
+    const entry = { ingredients, result };
     recipeList.push(entry);
-    indexRecipe(aT, entry);
-    if (bT !== aT) indexRecipe(bT, entry);
+    new Set(ingredients).forEach(ing => indexRecipe(ing, entry));
 
-    universe.add(aT);
-    universe.add(bT);
-    universe.add(resultT);
+    ingredients.forEach(i => universe.add(i));
+    universe.add(result);
+}
+
+function resetRecipeData() {
+    recipeList.length = 0;
+    universe.clear();
+    universe.add(NOTHING_HAPPENS);
+    BASE_ELEMENTS.forEach(el => universe.add(el));
+    recipesByElement.clear();
+    seenRecipeSignatures.clear();
+    tierData = null;
 }
 
 async function loadRecipes() {
@@ -54,11 +73,11 @@ async function loadRecipes() {
 //
 // tier(x) = 0 for the four starting elements. For everything else, it's
 // the SHORTEST possible depth achievable by any recipe that produces it —
-// 1 + the higher of its two ingredients' own tiers, minimized across
-// every recipe that makes it, not just whichever one happens to be
-// listed first in the file. bestRecipe records which specific recipe
-// actually achieves that minimum, which the shortest-path view then
-// walks back through.
+// 1 + the highest of ITS ingredients' own tiers, minimized across every
+// recipe that makes it, not just whichever one happens to be listed
+// first in the file. bestRecipe records which specific recipe actually
+// achieves that minimum, which the shortest-path view then walks back
+// through.
 
 function computeTiers() {
     const tier = new Map();
@@ -70,8 +89,8 @@ function computeTiers() {
     while (changed) {
         changed = false;
         recipeList.forEach(entry => {
-            if (!tier.has(entry.a) || !tier.has(entry.b)) return;
-            const candidate = Math.max(tier.get(entry.a), tier.get(entry.b)) + 1;
+            if (entry.ingredients.some(i => !tier.has(i))) return;
+            const candidate = Math.max(...entry.ingredients.map(i => tier.get(i))) + 1;
             if (!tier.has(entry.result) || candidate < tier.get(entry.result)) {
                 tier.set(entry.result, candidate);
                 bestRecipe.set(entry.result, entry);
@@ -96,8 +115,7 @@ function buildOrder(target, bestRecipe) {
         visited.add(el);
         const entry = bestRecipe.get(el);
         if (!entry) return; // unreachable from the base elements
-        visit(entry.a);
-        visit(entry.b);
+        entry.ingredients.forEach(visit);
         order.push(entry);
     }
 
@@ -128,9 +146,12 @@ function computeStepLengths(bestRecipe, tier) {
     sortedByTier.forEach(el => {
         const entry = bestRecipe.get(el);
         if (!entry) return;
-        const setA = depSet.get(entry.a) || new Set();
-        const setB = depSet.get(entry.b) || new Set();
-        depSet.set(el, new Set([...setA, ...setB, el]));
+        const combined = new Set([el]);
+        entry.ingredients.forEach(ing => {
+            const s = depSet.get(ing) || new Set();
+            s.forEach(x => combined.add(x));
+        });
+        depSet.set(el, combined);
     });
 
     const stepLength = new Map();
@@ -329,7 +350,11 @@ function makeElementTile(el) {
     tryLoadIcon(el, img);
     btn.appendChild(img);
 
-    btn.appendChild(document.createTextNode(el));
+    btn.title = el; // full name always available, even when the visible label is truncated
+    const label = document.createElement("span");
+    label.className = "tile-label";
+    label.textContent = el;
+    btn.appendChild(label);
     btn.addEventListener("click", () => showElement(el));
     return btn;
 }
@@ -442,9 +467,10 @@ function renderDetail(name) {
             card.className = "tree-card";
             const p = document.createElement("p");
             p.className = "tree-origin";
-            p.appendChild(elementLink(r.a));
-            p.appendChild(document.createTextNode(" + "));
-            p.appendChild(elementLink(r.b));
+            r.ingredients.forEach((ing, i) => {
+                if (i > 0) p.appendChild(document.createTextNode(" + "));
+                p.appendChild(elementLink(ing));
+            });
             card.appendChild(p);
             madeFromEl.appendChild(card);
         });
@@ -466,11 +492,14 @@ function renderDetail(name) {
             .slice()
             .sort((x, y) => x.result.localeCompare(y.result, undefined, { sensitivity: "base" }))
             .forEach(r => {
-                const other = r.a === name ? r.b : r.a;
+                const others = [...r.ingredients];
+                others.splice(others.indexOf(name), 1); // remove exactly ONE instance of this element, not every occurrence
                 const p = document.createElement("p");
                 p.className = "tree-origin";
-                p.appendChild(document.createTextNode("+ "));
-                p.appendChild(elementLink(other));
+                others.forEach((ing, i) => {
+                    p.appendChild(document.createTextNode(i === 0 ? "+ " : " + "));
+                    p.appendChild(elementLink(ing));
+                });
                 p.appendChild(document.createTextNode(" \u2192 "));
                 p.appendChild(elementLink(r.result));
                 card.appendChild(p);
@@ -505,9 +534,10 @@ function renderDetail(name) {
             num.textContent = `${i + 1}.`;
             row.appendChild(num);
             const rest = document.createElement("span");
-            rest.appendChild(elementLink(step.a));
-            rest.appendChild(document.createTextNode(" + "));
-            rest.appendChild(elementLink(step.b));
+            step.ingredients.forEach((ing, j) => {
+                if (j > 0) rest.appendChild(document.createTextNode(" + "));
+                rest.appendChild(elementLink(ing));
+            });
             rest.appendChild(document.createTextNode(" = "));
             rest.appendChild(elementLink(step.result));
             row.appendChild(rest);
@@ -537,7 +567,11 @@ function setupSearch() {
                 const item = document.createElement("button");
                 item.type = "button";
                 item.className = "search-result-item";
-                item.appendChild(document.createTextNode(el));
+                item.title = el;
+                const label = document.createElement("span");
+                label.className = "tile-label";
+                label.textContent = el;
+                item.appendChild(label);
 
                 const badge = document.createElement("span");
                 badge.className = "tier-badge";
@@ -565,6 +599,119 @@ function setupSearch() {
     });
 }
 
+function readUploadedFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+        reader.readAsText(file);
+    });
+}
+
+function setCustomLoadStatus(msg, isError) {
+    const el = document.getElementById("custom-load-status");
+    if (!el) return;
+    el.textContent = msg || "";
+    el.style.color = isError ? "var(--red)" : "";
+}
+
+function refreshAfterRecipeChange() {
+    tierData = computeTiers();
+    tierData.stepLength = computeStepLengths(tierData.bestRecipe, tierData.tier);
+
+    // A stale search box/dropdown could reference an element that no
+    // longer exists in the newly loaded universe.
+    const searchInput = document.getElementById("db-search");
+    if (searchInput) searchInput.value = "";
+    const searchResults = document.getElementById("search-results");
+    if (searchResults) searchResults.innerHTML = "";
+
+    showBrowse();
+    renderBrowse();
+}
+
+function setupCustomLoad() {
+    const toggleBtn = document.getElementById("custom-load-toggle");
+    const panel = document.getElementById("custom-load-panel");
+    const loadBtn = document.getElementById("custom-load-btn");
+    const resetBtn = document.getElementById("custom-reset-btn");
+    const fileInput = document.getElementById("custom-file-input");
+
+    toggleBtn?.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+    });
+
+    loadBtn?.addEventListener("click", async () => {
+        const file = fileInput?.files?.[0];
+        if (!file) {
+            setCustomLoadStatus("Choose a file first.", true);
+            return;
+        }
+        if (!file.name.toLowerCase().endsWith(".js")) {
+            setCustomLoadStatus(`"${file.name}" isn't a .js file.`, true);
+            return;
+        }
+
+        const includeBase = document.getElementById("custom-include-base")?.checked === true;
+
+        resetRecipeData();
+
+        // Base loads first so a mod's own results still show up alongside
+        // it — see the note on recipe() above for why no override
+        // tracking is needed here.
+        if (includeBase) {
+            try {
+                await loadRecipes();
+            } catch (e) {
+                console.warn("Could not load the official recipes.js for merging:", e);
+            }
+        }
+
+        let code;
+        try {
+            code = await readUploadedFile(file);
+        } catch (e) {
+            setCustomLoadStatus("Could not read that file — try again.", true);
+            return;
+        }
+
+        try {
+            new Function("recipe", code)(recipe);
+        } catch (e) {
+            setCustomLoadStatus(`That file's format is wrong: ${e.message}. Fix it and upload it again.`, true);
+            return;
+        }
+
+        if (recipeList.length === 0) {
+            setCustomLoadStatus("No valid recipes were found in that file — check the format and try again.", true);
+            return;
+        }
+
+        refreshAfterRecipeChange();
+
+        setCustomLoadStatus(
+            `Loaded ${recipeList.length} recipe${recipeList.length === 1 ? "" : "s"}, ${universe.size} elements from "${file.name}"${includeBase ? " (merged with the official data)" : ""}.`,
+            false
+        );
+        if (resetBtn) resetBtn.hidden = false;
+    });
+
+    resetBtn?.addEventListener("click", async () => {
+        resetRecipeData();
+        setCustomLoadStatus("Reloading official data\u2026", false);
+        try {
+            await loadRecipes();
+        } catch (e) {
+            setCustomLoadStatus("Could not reload the official data — try refreshing the page.", true);
+            return;
+        }
+        refreshAfterRecipeChange();
+        setCustomLoadStatus("", false);
+        resetBtn.hidden = true;
+        if (fileInput) fileInput.value = "";
+    });
+}
+
 // ---------- Init ----------
 
 function onReady(fn) {
@@ -579,6 +726,7 @@ onReady(async () => {
     document.getElementById("back-to-browse").addEventListener("click", showBrowse);
     setupSearch();
     setupSortToggle();
+    setupCustomLoad();
 
     window.addEventListener("hashchange", () => {
         const raw = decodeURIComponent(location.hash.slice(1));
@@ -599,6 +747,7 @@ onReady(async () => {
     tierData.stepLength = computeStepLengths(tierData.bestRecipe, tierData.tier);
     document.getElementById("load-status").hidden = true;
     document.getElementById("sort-toggle-row").hidden = false;
+    document.getElementById("custom-load-toggle").hidden = false;
     renderBrowse();
 
     const initialRaw = decodeURIComponent(location.hash.slice(1));
