@@ -217,6 +217,8 @@ function elementLink(name) {
 }
 
 let browseSortMode = "tier";
+let browseSearchQuery = ""; // lowercased, for matching
+let browseSearchQueryRaw = ""; // original casing, for display text only
 
 function renderBrowse() {
     if (browseSortMode === "steps") renderBrowseByStepLength();
@@ -245,6 +247,8 @@ function renderBrowseByStepLength() {
         .filter(el => !BASE_ELEMENTS.includes(el) && stepLength.has(el))
         .sort((a, b) => stepLength.get(b) - stepLength.get(a));
 
+    const query = browseSearchQuery;
+
     const heading = document.createElement("p");
     heading.className = "tier-heading";
     heading.textContent = "Longest build paths";
@@ -252,18 +256,32 @@ function renderBrowseByStepLength() {
 
     const sub = document.createElement("p");
     sub.className = "tier-sub";
-    const shownCount = Math.min(STEP_LENGTH_DISPLAY_CAP, ranked.length);
-    sub.textContent = `Ranked by total unique elements needed in the shortest build order — not the same as tier, which only measures recipe depth. Showing the top ${shownCount} of ${ranked.length} reachable elements.`;
+    if (query) {
+        const matchCount = ranked.filter(el => el.toLowerCase().includes(query)).length;
+        sub.textContent = `Ranked by total unique elements needed in the shortest build order. Showing ${matchCount} match${matchCount === 1 ? "" : "es"} for "${browseSearchQueryRaw}", searched against the full list — rank numbers are each element's true rank, not renumbered for the filtered view.`;
+    } else {
+        const shownCount = Math.min(STEP_LENGTH_DISPLAY_CAP, ranked.length);
+        sub.textContent = `Ranked by total unique elements needed in the shortest build order — not the same as tier, which only measures recipe depth. Showing the top ${shownCount} of ${ranked.length} reachable elements.`;
+    }
     container.appendChild(sub);
 
-    ranked.slice(0, STEP_LENGTH_DISPLAY_CAP).forEach((el, i) => {
+    // Rank numbers are computed against the FULL list first, then the
+    // list is filtered for display — so a match keeps its true rank
+    // (e.g. "#47") instead of being renumbered relative to the filtered
+    // subset, which is what "still correct data" means here.
+    const withRank = ranked.map((el, i) => ({ el, rank: i + 1 }));
+    const visible = query
+        ? withRank.filter(x => x.el.toLowerCase().includes(query))
+        : withRank.slice(0, STEP_LENGTH_DISPLAY_CAP);
+
+    visible.forEach(({ el, rank }) => {
         const row = document.createElement("div");
         row.className = "rank-row";
 
-        const rank = document.createElement("span");
-        rank.className = "rank-num";
-        rank.textContent = `${i + 1}.`;
-        row.appendChild(rank);
+        const rankEl = document.createElement("span");
+        rankEl.className = "rank-num";
+        rankEl.textContent = `${rank}.`;
+        row.appendChild(rankEl);
 
         const link = elementLink(el);
         link.className = "rank-name";
@@ -287,11 +305,13 @@ function renderBrowseByTier() {
     const { tier } = tierData;
     const maxTier = Math.max(0, ...[...tier.values()]);
 
+    const query = browseSearchQuery;
+
     for (let t = 0; t <= maxTier; t++) {
-        const elementsAtTier = [...universe].filter(el => tier.get(el) === t).sort((a, b) =>
-            a.localeCompare(b, undefined, { sensitivity: "base" })
-        );
-        if (elementsAtTier.length === 0) continue;
+        const elementsAtTier = [...universe]
+            .filter(el => tier.get(el) === t && (!query || el.toLowerCase().includes(query)))
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+        if (elementsAtTier.length === 0) continue; // includes: this tier had matches before filtering, but none survived the search — heading correctly disappears too, not just the tiles
 
         const heading = document.createElement("p");
         heading.className = "tier-heading";
@@ -318,9 +338,9 @@ function renderBrowseByTier() {
     // Anything in universe with no tier at all is unreachable from the
     // base elements — same concept as the main game's orphan report.
     // The wildcard is deliberately excluded here (see above).
-    const unreachable = [...universe].filter(el => !tier.has(el) && el !== NOTHING_HAPPENS).sort((a, b) =>
-        a.localeCompare(b, undefined, { sensitivity: "base" })
-    );
+    const unreachable = [...universe]
+        .filter(el => !tier.has(el) && el !== NOTHING_HAPPENS && (!query || el.toLowerCase().includes(query)))
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
     if (unreachable.length > 0) {
         const heading = document.createElement("p");
         heading.className = "tier-heading";
@@ -555,7 +575,11 @@ function setupSearch() {
     const results = document.getElementById("search-results");
 
     input.addEventListener("input", () => {
-        const query = input.value.trim().toLowerCase();
+        browseSearchQueryRaw = input.value.trim();
+        browseSearchQuery = browseSearchQueryRaw.toLowerCase();
+        if (!document.getElementById("browse-view").classList.contains("hidden")) renderBrowse();
+
+        const query = browseSearchQuery;
         results.innerHTML = "";
         if (!query) return;
 
@@ -615,9 +639,182 @@ function setCustomLoadStatus(msg, isError) {
     el.style.color = isError ? "var(--red)" : "";
 }
 
+// ---------- Recipe ideas ----------
+//
+// For a chosen tier, the eligible ingredient pool is everything strictly
+// below it — the same rule the tier system already uses everywhere else
+// (tier N is only ever built from tier N-1 or lower). Every possible
+// combination of a given size is generated from that pool and compared
+// against what's already defined; whatever's left is a genuine gap.
+//
+// This is real combinatorial explosion territory — C(500, 3) is over 20
+// million — so nothing here runs unless a safety check confirms the
+// space is small enough to actually enumerate in a browser first.
+
+function combinationsCount(n, k) {
+    if (k < 0 || k > n) return 0;
+    k = Math.min(k, n - k); // symmetry — halves the work for large k
+    let result = 1;
+    for (let i = 0; i < k; i++) {
+        result = (result * (n - i)) / (i + 1);
+    }
+    return Math.round(result);
+}
+
+// A generator, not a materialized array — combinations are produced one
+// at a time in lexicographic order, so nothing is built in memory beyond
+// what's actually being consumed.
+function* generateCombinations(pool, k) {
+    const n = pool.length;
+    if (k > n || k <= 0) return;
+    const indices = Array.from({ length: k }, (_, i) => i);
+    while (true) {
+        yield indices.map(i => pool[i]);
+        let i = k - 1;
+        while (i >= 0 && indices[i] === n - k + i) i--;
+        if (i < 0) return;
+        indices[i]++;
+        for (let j = i + 1; j < k; j++) indices[j] = indices[j - 1] + 1;
+    }
+}
+
+function computeMaxArityInRecipes() {
+    let max = 2;
+    recipeList.forEach(r => { if (r.ingredients.length > max) max = r.ingredients.length; });
+    return max;
+}
+
+const IDEAS_COMBINATION_SAFETY_CAP = 300000; // refuse rather than freeze the page past this
+const IDEAS_DISPLAY_CAP = 300; // shown even when the search itself succeeds
+
+function findRecipeIdeas(targetTier, arity) {
+    const { tier } = tierData;
+
+    const pool = [...universe]
+        .filter(el => el !== NOTHING_HAPPENS && tier.has(el) && tier.get(el) <= targetTier - 1)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+
+    if (pool.length < arity) {
+        return { error: `Only ${pool.length} element${pool.length === 1 ? "" : "s"} exist${pool.length === 1 ? "s" : ""} below tier ${targetTier} — not enough to form a ${arity}-ingredient combination.` };
+    }
+
+    const totalPossible = combinationsCount(pool.length, arity);
+    if (totalPossible > IDEAS_COMBINATION_SAFETY_CAP) {
+        return { error: `${totalPossible.toLocaleString()} possible combinations from a pool of ${pool.length} — too many to check in a browser. Try a lower tier or fewer ingredients.` };
+    }
+
+    // Existing combos of EXACTLY this arity, as sorted signatures — a
+    // 2-ingredient recipe doesn't "use up" a 3-ingredient combination
+    // just because it happens to share two elements with it.
+    const existingSignatures = new Set();
+    recipeList.forEach(r => {
+        if (r.ingredients.length === arity) {
+            existingSignatures.add([...r.ingredients].sort().join("|"));
+        }
+    });
+
+    const missing = [];
+    for (const combo of generateCombinations(pool, arity)) {
+        const signature = [...combo].sort().join("|");
+        if (!existingSignatures.has(signature)) missing.push(combo);
+    }
+
+    return { pool: pool.length, totalPossible, missing };
+}
+
+function populateIdeasDropdowns() {
+    const tierSelect = document.getElementById("ideas-tier-select");
+    const aritySelect = document.getElementById("ideas-arity-select");
+    if (!tierSelect || !aritySelect) return;
+
+    const maxTier = Math.max(0, ...[...tierData.tier.values()]);
+    tierSelect.innerHTML = "";
+    for (let t = 1; t <= maxTier; t++) {
+        const opt = document.createElement("option");
+        opt.value = String(t);
+        opt.textContent = `Tier ${t}`;
+        tierSelect.appendChild(opt);
+    }
+
+    // Only ever offers arities actually present in the loaded data — the
+    // real recipes.js is all 2-ingredient, so this stays at just "2"
+    // unless a wider mod file is loaded.
+    const maxArity = computeMaxArityInRecipes();
+    aritySelect.innerHTML = "";
+    for (let a = 2; a <= maxArity; a++) {
+        const opt = document.createElement("option");
+        opt.value = String(a);
+        opt.textContent = String(a);
+        aritySelect.appendChild(opt);
+    }
+}
+
+function renderIdeasResults(result) {
+    const status = document.getElementById("ideas-status");
+    const resultsEl = document.getElementById("ideas-results");
+    resultsEl.innerHTML = "";
+
+    if (result.error) {
+        status.textContent = result.error;
+        status.style.color = "var(--red)";
+        return;
+    }
+
+    status.style.color = "";
+    const missingCount = result.missing.length;
+    if (missingCount === 0) {
+        status.textContent = `All ${result.totalPossible.toLocaleString()} possible combinations from this pool already have a recipe — no ideas left here.`;
+        return;
+    }
+
+    const shown = result.missing.slice(0, IDEAS_DISPLAY_CAP);
+    status.textContent = `${missingCount.toLocaleString()} of ${result.totalPossible.toLocaleString()} possible combinations don't have a recipe yet${
+        missingCount > IDEAS_DISPLAY_CAP ? ` — showing the first ${IDEAS_DISPLAY_CAP}` : ""
+    }.`;
+
+    shown.forEach(combo => {
+        const row = document.createElement("p");
+        row.className = "idea-row";
+        row.textContent = combo.join(" + ");
+        resultsEl.appendChild(row);
+    });
+}
+
+function setupIdeasPanel() {
+    const toggleBtn = document.getElementById("ideas-toggle");
+    const panel = document.getElementById("ideas-panel");
+    const findBtn = document.getElementById("ideas-find-btn");
+
+    toggleBtn?.addEventListener("click", () => {
+        panel.hidden = !panel.hidden;
+    });
+
+    findBtn?.addEventListener("click", () => {
+        const targetTier = Number(document.getElementById("ideas-tier-select")?.value);
+        const arity = Number(document.getElementById("ideas-arity-select")?.value);
+        if (!targetTier || !arity) return;
+
+        const status = document.getElementById("ideas-status");
+        status.textContent = "Searching\u2026";
+        status.style.color = "";
+        document.getElementById("ideas-results").innerHTML = "";
+
+        // Deferred so "Searching..." actually paints before the
+        // (capped, but still potentially chunky) computation runs.
+        setTimeout(() => {
+            renderIdeasResults(findRecipeIdeas(targetTier, arity));
+        }, 20);
+    });
+}
+
 function refreshAfterRecipeChange() {
     tierData = computeTiers();
     tierData.stepLength = computeStepLengths(tierData.bestRecipe, tierData.tier);
+    populateIdeasDropdowns();
+    const ideasStatus = document.getElementById("ideas-status");
+    if (ideasStatus) ideasStatus.textContent = "";
+    const ideasResults = document.getElementById("ideas-results");
+    if (ideasResults) ideasResults.innerHTML = "";
 
     // A stale search box/dropdown could reference an element that no
     // longer exists in the newly loaded universe.
@@ -625,6 +822,8 @@ function refreshAfterRecipeChange() {
     if (searchInput) searchInput.value = "";
     const searchResults = document.getElementById("search-results");
     if (searchResults) searchResults.innerHTML = "";
+    browseSearchQuery = "";
+    browseSearchQueryRaw = "";
 
     showBrowse();
     renderBrowse();
@@ -742,6 +941,7 @@ onReady(async () => {
     setupSearch();
     setupSortToggle();
     setupCustomLoad();
+    setupIdeasPanel();
 
     window.addEventListener("hashchange", () => {
         const raw = decodeURIComponent(location.hash.slice(1));
@@ -763,6 +963,8 @@ onReady(async () => {
     document.getElementById("load-status").hidden = true;
     document.getElementById("sort-toggle-row").hidden = false;
     document.getElementById("custom-load-toggle").hidden = false;
+    document.getElementById("ideas-toggle").hidden = false;
+    populateIdeasDropdowns();
     renderBrowse();
 
     const initialRaw = decodeURIComponent(location.hash.slice(1));
