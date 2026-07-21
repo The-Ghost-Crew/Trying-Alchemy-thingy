@@ -644,7 +644,7 @@ function computeMaxArityInRecipes() {
 const IDEAS_COMBINATION_SAFETY_CAP = 300000; // refuse rather than freeze the page past this
 const IDEAS_DISPLAY_CAP = 300; // shown even when the search itself succeeds
 
-function findRecipeIdeas(targetTier, arity) {
+function findRecipeIdeas(targetTier, arity, requiredElement) {
     const { tier } = tierData;
 
     const pool = [...universe]
@@ -655,7 +655,26 @@ function findRecipeIdeas(targetTier, arity) {
         return { error: `Only ${pool.length} element${pool.length === 1 ? "" : "s"} exist${pool.length === 1 ? "s" : ""} below tier ${targetTier} — not enough to form a ${arity}-ingredient combination.` };
     }
 
-    const totalPossible = combinationsCount(pool.length, arity);
+    let restPool = pool;
+    let restArity = arity;
+    if (requiredElement) {
+        if (!universe.has(requiredElement) || requiredElement === NOTHING_HAPPENS) {
+            return { error: `"${requiredElement}" isn't a known element.` };
+        }
+        if (!pool.includes(requiredElement)) {
+            return { error: `"${requiredElement}" isn't a valid ingredient for tier ${targetTier} — it needs to be tier ${targetTier - 1} or lower itself.` };
+        }
+        // The optimization: rather than generating every combination and
+        // throwing out the ones missing the required element, fix it in
+        // place and only combine the remaining slots from the rest of
+        // the pool. This is a genuinely smaller search — C(pool-1,
+        // arity-1) instead of C(pool, arity) — which can succeed even in
+        // cases the unfiltered search would refuse as too large.
+        restPool = pool.filter(el => el !== requiredElement);
+        restArity = arity - 1;
+    }
+
+    const totalPossible = restArity === 0 ? 1 : combinationsCount(restPool.length, restArity);
     if (totalPossible > IDEAS_COMBINATION_SAFETY_CAP) {
         return { error: `${totalPossible.toLocaleString()} possible combinations from a pool of ${pool.length} — too many to check in a browser. Try a lower tier or fewer ingredients.` };
     }
@@ -671,12 +690,14 @@ function findRecipeIdeas(targetTier, arity) {
     });
 
     const missing = [];
-    for (const combo of generateCombinations(pool, arity)) {
+    const restCombos = restArity === 0 ? [[]] : generateCombinations(restPool, restArity);
+    for (const restCombo of restCombos) {
+        const combo = requiredElement ? [requiredElement, ...restCombo] : restCombo;
         const signature = [...combo].sort().join("|");
-        if (!existingSignatures.has(signature)) missing.push(combo);
+        if (!existingSignatures.has(signature)) missing.push([...combo].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })));
     }
 
-    return { pool: pool.length, totalPossible, missing };
+    return { pool: pool.length, totalPossible, missing, requiredElement };
 }
 
 function populateIdeasDropdowns() {
@@ -704,6 +725,19 @@ function populateIdeasDropdowns() {
         opt.textContent = String(a);
         aritySelect.appendChild(opt);
     }
+
+    const datalist = document.getElementById("ideas-required-datalist");
+    if (datalist) {
+        datalist.innerHTML = "";
+        [...universe]
+            .filter(el => el !== NOTHING_HAPPENS)
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+            .forEach(el => {
+                const opt = document.createElement("option");
+                opt.value = el;
+                datalist.appendChild(opt);
+            });
+    }
 }
 
 function renderIdeasResults(result) {
@@ -718,14 +752,15 @@ function renderIdeasResults(result) {
     }
 
     status.style.color = "";
+    const scope = result.requiredElement ? ` including "${result.requiredElement}"` : "";
     const missingCount = result.missing.length;
     if (missingCount === 0) {
-        status.textContent = `All ${result.totalPossible.toLocaleString()} possible combinations from this pool already have a recipe — no ideas left here.`;
+        status.textContent = `All ${result.totalPossible.toLocaleString()} possible combinations${scope} already have a recipe — no ideas left here.`;
         return;
     }
 
     const shown = result.missing.slice(0, IDEAS_DISPLAY_CAP);
-    status.textContent = `${missingCount.toLocaleString()} of ${result.totalPossible.toLocaleString()} possible combinations don't have a recipe yet${
+    status.textContent = `${missingCount.toLocaleString()} of ${result.totalPossible.toLocaleString()} possible combinations${scope} don't have a recipe yet${
         missingCount > IDEAS_DISPLAY_CAP ? ` — showing the first ${IDEAS_DISPLAY_CAP}` : ""
     }.`;
 
@@ -751,6 +786,15 @@ function setupIdeasPanel() {
         const arity = Number(document.getElementById("ideas-arity-select")?.value);
         if (!targetTier || !arity) return;
 
+        const requiredRaw = document.getElementById("ideas-required-input")?.value.trim() || "";
+        // Typed text is matched case-insensitively against the actual
+        // universe, then resolved to the element's real stored casing —
+        // findRecipeIdeas() and the recipe signatures it compares against
+        // both need the exact casing to match correctly.
+        const requiredElement = requiredRaw
+            ? [...universe].find(el => el.toLowerCase() === requiredRaw.toLowerCase()) || requiredRaw
+            : "";
+
         const status = document.getElementById("ideas-status");
         status.textContent = "Searching\u2026";
         status.style.color = "";
@@ -759,7 +803,7 @@ function setupIdeasPanel() {
         // Deferred so "Searching..." actually paints before the
         // (capped, but still potentially chunky) computation runs.
         setTimeout(() => {
-            renderIdeasResults(findRecipeIdeas(targetTier, arity));
+            renderIdeasResults(findRecipeIdeas(targetTier, arity, requiredElement));
         }, 20);
     });
 }
