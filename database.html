@@ -251,10 +251,11 @@
   }
 
   #ideas-panel .wizard-sublabel { display: flex; flex-direction: column; gap: 6px; flex: 1; }
-  #ideas-panel select {
+  #ideas-panel select, #ideas-panel input[type="text"] {
     font-family: 'Inter', sans-serif; font-size: 0.9rem;
     background: var(--panel); border: 1px solid var(--border);
     color: var(--text); padding: 8px 12px; border-radius: 6px;
+    width: 100%;
   }
 
   #ideas-find-btn {
@@ -586,6 +587,10 @@
         <label class="wizard-sublabel" style="margin:0;">Tier<select id="ideas-tier-select"></select></label>
         <label class="wizard-sublabel" style="margin:0;">Ingredients<select id="ideas-arity-select"></select></label>
       </div>
+      <label class="wizard-sublabel" style="margin:12px 0 0;">Must include (optional)
+        <input type="text" id="ideas-required-input" list="ideas-required-datalist" placeholder="Leave blank to search everything" autocomplete="off">
+        <datalist id="ideas-required-datalist"></datalist>
+      </label>
       <button id="ideas-find-btn" type="button">Find ideas</button>
       <p id="ideas-status" class="empty-note"></p>
       <div id="ideas-results"></div>
