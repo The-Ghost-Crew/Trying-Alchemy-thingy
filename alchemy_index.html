@@ -127,6 +127,16 @@
     display: inline-block;
   }
 
+  /* Desktop only — mobile keeps the compact sizing tuned for fitting
+     every tab on a narrow phone screen without this. */
+  @media (min-width: 768px) {
+    .tab-button {
+      font-size: 0.8rem;
+      letter-spacing: 0.03em;
+      padding: 9px 16px;
+    }
+  }
+
   .tab-badge {
     position: absolute;
     top: -6px;
@@ -255,7 +265,19 @@
 
   #search::placeholder, #tree-search::placeholder { color: var(--text-muted); }
 
-  #elements, #dead-end-elements { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  #elements, #dead-end-elements { display: block; margin-bottom: 20px; }
+
+  .element-tile-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .element-tile-row + .tier-group-heading { margin-top: 16px; }
+
+  .tier-group-heading {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+  }
 
   .section-label {
     font-family: 'IBM Plex Mono', monospace;
@@ -290,12 +312,12 @@
   .element-tile {
     max-width: 100%;
     font-family: 'Inter', sans-serif;
-    font-size: 0.9rem;
+    font-size: 1rem;
     background: var(--panel);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: 20px;
-    padding: 8px 16px;
+    padding: 9px 17px;
     cursor: pointer;
     transition: border-color 0.15s ease;
   }
@@ -318,7 +340,7 @@
      flex algorithm left in the picture to interpret differently. */
   .element-tile .tile-label {
     display: inline-block;
-    max-width: 190px;
+    max-width: 210px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1131,6 +1153,7 @@
       <div class="sort-controls">
         <button class="sort-toggle active" data-sort="alpha" type="button">A–Z</button>
         <button class="sort-toggle" data-sort="recent" type="button">Recent</button>
+        <button class="sort-toggle" data-sort="tier" type="button">By Tier</button>
       </div>
 
       <input id="search" type="text" placeholder="Search your discovered elements…">
