@@ -1354,7 +1354,11 @@ function makeElementTile(element) {
 
     const icon = createElementIcon(element);
     if (icon) button.appendChild(icon);
-    button.appendChild(document.createTextNode(element));
+    button.title = element; // full name always available, even when the visible label is truncated
+    const label = document.createElement("span");
+    label.className = "tile-label";
+    label.textContent = element;
+    button.appendChild(label);
 
     button.onclick = () => {
         // The run's clock starts on the player's first actual interaction,
@@ -1461,7 +1465,7 @@ let sortMode = "alpha"; // "alpha" | "recent"
 function loadSortModePreference() {
     try {
         const saved = localStorage.getItem(SORT_MODE_KEY);
-        if (saved === "alpha" || saved === "recent") sortMode = saved;
+        if (saved === "alpha" || saved === "recent" || saved === "tier") sortMode = saved;
     } catch (e) {
         console.warn("Could not load sort mode preference:", e);
     }
@@ -1726,10 +1730,64 @@ function render() {
         active = [...greenPair, ...hintable, ...rest];
     }
 
-    active.forEach(el => activeBox.appendChild(makeElementTile(el)));
-    dead.forEach(el => deadBox.appendChild(makeElementTile(el)));
+    if (sortMode === "tier") {
+        renderTierGrouped(activeBox, active);
+        renderTierGrouped(deadBox, dead);
+    } else {
+        renderFlatRow(activeBox, active);
+        renderFlatRow(deadBox, dead);
+    }
 
     if (deadSection) deadSection.hidden = dead.length === 0;
+}
+
+// A single wrapping row of tiles — what render() always produced before
+// tier grouping existed, now shared by both the flat modes (alpha/
+// recent) and as the building block inside each tier group below.
+function renderFlatRow(container, list) {
+    const row = document.createElement("div");
+    row.className = "element-tile-row";
+    list.forEach(el => row.appendChild(makeElementTile(el)));
+    container.appendChild(row);
+}
+
+// Groups a list into tier headings + rows, reusing the same memoized
+// tier cache already built for the speedrun step-length picker — no
+// separate computation, and it's invalidated on the same recipe-reload
+// path that cache already handles. Elements with no computed tier (the
+// wildcard, or anything genuinely unreachable through real recipes) land
+// in a trailing "Other" group instead of being silently dropped.
+function renderTierGrouped(container, list) {
+    const data = ensureSpeedTierData();
+    const tierMap = data ? data.tier : new Map();
+
+    const groups = new Map();
+    const other = [];
+    list.forEach(el => {
+        if (tierMap.has(el)) {
+            const t = tierMap.get(el);
+            if (!groups.has(t)) groups.set(t, []);
+            groups.get(t).push(el);
+        } else {
+            other.push(el);
+        }
+    });
+
+    [...groups.keys()].sort((a, b) => a - b).forEach(t => {
+        const heading = document.createElement("p");
+        heading.className = "tier-group-heading";
+        heading.textContent = t === 0 ? "Starting elements" : `Tier ${t}`;
+        container.appendChild(heading);
+        renderFlatRow(container, groups.get(t));
+    });
+
+    if (other.length > 0) {
+        const heading = document.createElement("p");
+        heading.className = "tier-group-heading";
+        heading.textContent = "Other";
+        container.appendChild(heading);
+        renderFlatRow(container, other);
+    }
 }
 
 // ---------- Shared detail content (used by graph panel AND list view) ----------
