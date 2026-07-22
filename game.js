@@ -84,6 +84,216 @@ function createElementIcon(element) {
 
 const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 
+// ---------- Colorology ----------
+//
+// A handful of elements happen to share a name with a real, named color —
+// discovered completely independently, by averaging hex codes the same
+// way this game averages ideas. When an element's name matches one of
+// these (case-insensitively), its tile background becomes that color's
+// actual hex instead of the normal panel color. Lowercased keys, since
+// matching is always case-insensitive — "Water" and "water" are the same
+// lookup.
+const COLOROLOGY_COLORS = {
+    "red": "#ff0000",
+    "orange": "#ffa500",
+    "yellow": "#ffff00",
+    "green": "#00ff00",
+    "blue": "#0000ff",
+    "purple": "#800080",
+    "white": "#ffffff",
+    "black": "#000000",
+    "grey": "#808080",
+    "rose gold": "#b76e79",
+    "brown": "#653700",
+    "coral": "#ff7f50",
+    "smoke": "#bfc8c3",
+    "tide": "#beb4ab",
+    "googol": "#41c379",
+    "googolplex": "#93af3c",
+    "emerald": "#028f1e",
+    "beryl": "#71dcb8",
+    "gold": "#ffd700",
+    "plutonium": "#35fa00",
+    "heartbreaker": "#cc76a3",
+    "punch": "#dc4333",
+    "coconut": "#965a3e",
+    "water": "#d4f1f9",
+    "fire": "#8f3f2a",
+    "earth": "#a2653e",
+    "ocean": "#005493",
+    "maroon": "#800000",
+    "free speech red": "#c00000",
+    "mesopotamian dagger": "#804040",
+    "spooky tangerine": "#ff6b00",
+    "philippine orange": "#ff7300",
+    "inferno orange": "#ff4400",
+    "safety orange": "#ff6600",
+    "redяum": "#ff2200",
+    "boiling magma": "#ff3300",
+    "lucky orange": "#ff7700",
+    "burtuqali orange": "#ff6700",
+    "phaser beam": "#ff4d00",
+    "mystic red": "#ff5500",
+    "furious red": "#ff1100",
+    "ultimate orange": "#ff4200",
+    "ferrari red": "#ff2800",
+    "shining gold": "#ffd200",
+    "sunset strip": "#ffbc00",
+    "mandarin jelly": "#ff8800",
+    "king nacho": "#ffb800",
+    "amber": "#ffbf00",
+    "sunflower mango": "#ffb700",
+    "sun crete": "#ff8c00",
+    "imperial yellow": "#ffb200",
+    "nacho cheese": "#ffbb00",
+    "selective yellow": "#ffba00",
+    "yamabuki gold": "#ffa400",
+    "middle yellow": "#ffeb00",
+    "tweety": "#ffef00",
+    "lemon": "#fff700",
+    "dorn yellow": "#fff200",
+    "citrus splash": "#ffc400",
+    "lisbon lemon": "#fffb00",
+    "sailor moon": "#ffee00",
+    "teal": "#008080",
+    "hulk": "#008000",
+    "waystone green": "#00c000",
+    "blue party parrot": "#8080ff",
+    "navy blue": "#000080",
+    "hello darkness my old friend": "#802280",
+    "trendy pink": "#805d80",
+    "violettuce": "#882055",
+    "cupidity": "#406040",
+    "brandy punch": "#c07c40",
+    "tapestry red": "#c06960",
+    "silver": "#c0c0c0",
+    "lemon peel": "#ffed80",
+    "vivid tangerine": "#ff9980",
+    "apricot flower": "#ffbb80",
+    "orchid orange": "#ffa180",
+    "rich glow": "#ffe8a0",
+    "rich black": "#004040",
+    "spikey red": "#600000",
+    "dried mustard": "#804a00",
+    "calm cupid": "#c6b0b9",
+    "sunken gold": "#b29700",
+    "light relax": "#caddde",
+    "sahara gravel": "#dfc08a",
+    "sinag gold": "#ffd500",
+    "yellow flash": "#ffca00",
+    "sizzling sunrise": "#ffdb00",
+    "electric glow": "#ffd100",
+    "school bus": "#ffd800",
+    "terrapin": "#807f4a",
+    "orange rufous": "#c05200",
+    "mahogany": "#c04000",
+    "golden yellow": "#ffdf00",
+    "cyber yellow": "#ffd400",
+    "soviet gold": "#ffd900",
+    "mandarin peel": "#ff9f00",
+    "yellow tang": "#ffd300",
+    "summer sun": "#ffdc00",
+    "star": "#ffe500",
+    "graham crust": "#806240",
+    "spring fever": "#e5e3bf",
+    "warmth of teamwork": "#803020",
+    "sunny summer": "#ffc900",
+    "usc gold": "#ffcc00",
+    "wheel of dharma": "#ffcd00",
+    "orange peel": "#ffa000",
+    "super saiyan": "#ffdd00",
+    "fluorescent orange": "#ffcf00",
+    "demonic yellow": "#ffe700",
+    "fresh squeezed": "#ffad00",
+    "pico orange": "#ffa300",
+    "heat wave": "#ff7a00",
+    "barcelona orange": "#ff9500",
+    "molten core": "#ff5800",
+    "princeton orange": "#ff8f00",
+    "tangerine": "#ff9300",
+    "aerospace orange": "#ff4f00",
+    "ginger": "#b06500",
+    "coffee addiction": "#883300",
+    "chrome yellow": "#ffa700",
+    "cheese": "#ffa600",
+    "yellow rose": "#fff000",
+    "shade of amber": "#ff7e00",
+    "vitamin c": "#ff9900",
+    "ucla gold": "#ffb300",
+    "american orange": "#ff8b00",
+    "the new black": "#ff8400",
+    "orange juice": "#ff7f00",
+    "flash of orange": "#ffaa00",
+    "carolling candlelight": "#ffb850",
+    "lamplight": "#ffd140",
+    "vivid orange": "#ff5f00",
+    "cadmium yellow": "#fff600",
+    "spiced cashews": "#d3b080",
+    "red dit": "#ff4500",
+    "coquelicot": "#ff3800",
+    "maximum orange": "#ff5b00",
+    "honey crisp": "#e9c160",
+};
+
+const COLOROLOGY_SEEN_KEY = "alchemy_colorology_seen";
+const COLOROLOGY_DISABLED_KEY = "alchemy_colorology_disabled";
+let colorologyDisabled = false; // colors ON by default — the whole point is that it's a surprise to find
+
+function loadColorologyPrefs() {
+    try {
+        colorologyDisabled = localStorage.getItem(COLOROLOGY_DISABLED_KEY) === "true";
+    } catch (e) { /* private browsing or similar — default stands */ }
+}
+
+function colorologyHex(element) {
+    // Base elements are excluded on purpose: water, fire, and earth are
+    // ALL real colorology matches, and they're three of the four things
+    // every player starts with. Coloring them would mean the popup fires
+    // the instant anyone opens the game, before they've combined
+    // anything — the opposite of "notice this just happened."
+    if (BASE_ELEMENTS.includes(element.toLowerCase())) return null;
+    return COLOROLOGY_COLORS[element.toLowerCase()] || null;
+}
+
+function colorologySeen() {
+    try { return localStorage.getItem(COLOROLOGY_SEEN_KEY) === "true"; }
+    catch (e) { return false; }
+}
+
+function markColorologySeen() {
+    try { localStorage.setItem(COLOROLOGY_SEEN_KEY, "true"); } catch (e) {}
+}
+
+function setColorologyDisabled(value) {
+    colorologyDisabled = value;
+    try { localStorage.setItem(COLOROLOGY_DISABLED_KEY, value ? "true" : "false"); } catch (e) {}
+}
+
+// Fires once, ever — the first time a player has (or discovers) any
+// element whose name matches a real color. Checked both at load time
+// (an existing save might already contain a match from before this
+// feature existed) and at the moment of a brand new discovery.
+function maybeShowColorologyPopup(elementName) {
+    if (colorologyDisabled || colorologySeen()) return;
+    if (!colorologyHex(elementName)) return;
+    const popup = document.getElementById("colorology-popup");
+    const body = document.getElementById("colorology-popup-body");
+    if (!popup || !body) return;
+    body.textContent = `Notice ${elementName}'s background just changed color? That's not random — it's colorology.`;
+    popup.hidden = false;
+}
+
+function checkExistingDiscoveriesForColorology() {
+    if (colorologyDisabled || colorologySeen()) return;
+    for (const el of discovered) {
+        if (colorologyHex(el)) {
+            maybeShowColorologyPopup(el);
+            return;
+        }
+    }
+}
+
+
 // A hardcoded, always-present "wildcard" element: any combo with no real
 // recipe now discovers this instead of producing a dead end, and it
 // absorbs anything it touches afterward (nothing happens + X = nothing
@@ -1352,6 +1562,23 @@ function makeElementTile(element) {
     if (element === lastDiscovered) button.classList.add("just-found");
     if (element === NOTHING_HAPPENS) button.classList.add("nothing-happens-tile");
 
+    if (!colorologyDisabled) {
+        const hex = colorologyHex(element);
+        if (hex) {
+            button.classList.add("colorology-tile");
+            button.style.background = hex;
+            // Standard perceived-luminance check — picks readable text
+            // for whichever color happens to land here, since these are
+            // real color hexes, not something tuned for this palette.
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+            button.style.color = luminance > 150 ? "#14151f" : "#f4f1e8";
+            button.style.borderColor = luminance > 150 ? "rgba(20,21,31,0.35)" : "rgba(244,241,232,0.35)";
+        }
+    }
+
     const icon = createElementIcon(element);
     if (icon) button.appendChild(icon);
     button.title = element; // full name always available, even when the visible label is truncated
@@ -1411,6 +1638,7 @@ function makeElementTile(element) {
             graphLoadFailed = false;
             playDiscoverySound();
             speedrunOnDiscovery();
+            maybeShowColorologyPopup(result);
         } else if (!result) {
             playNothingSound();
         }
@@ -1481,6 +1709,47 @@ function loadHintModePreference() {
     } catch (e) {
         console.warn("Could not load hint mode preference:", e);
     }
+}
+
+function setupColorologyToggle() {
+    const btn = document.getElementById("colorology-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = colorologyDisabled ? "Colors: Off" : "Colors: On";
+        btn.classList.toggle("muted", colorologyDisabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        setColorologyDisabled(!colorologyDisabled);
+        updateLabel();
+        render(); // re-apply or strip tile backgrounds immediately
+    });
+}
+
+function setupColorologyPopup() {
+    const popup = document.getElementById("colorology-popup");
+    const okayBtn = document.getElementById("colorology-okay-btn");
+    const disableBtn = document.getElementById("colorology-disable-btn");
+    if (!popup) return;
+
+    okayBtn?.addEventListener("click", () => {
+        markColorologySeen();
+        popup.hidden = true;
+    });
+
+    disableBtn?.addEventListener("click", () => {
+        markColorologySeen();
+        setColorologyDisabled(true);
+        popup.hidden = true;
+        const toggleBtn = document.getElementById("colorology-toggle");
+        if (toggleBtn) {
+            toggleBtn.textContent = "Colors: Off";
+            toggleBtn.classList.add("muted");
+        }
+        render(); // strip the backgrounds that are currently showing
+    });
 }
 
 function setupHintModeToggle() {
@@ -3493,6 +3762,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         hintModeEnabled = !!speedrunConfig.hintOn;
     }
     loadAiNoticePreference();
+    loadColorologyPrefs();
     setupTabs();
     setupSearch();
     setupBackupControls();
@@ -3512,6 +3782,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         applySpeedrunActiveUi();
     }
     setupAiNoticeAck();
+    setupColorologyPopup();
+    setupColorologyToggle();
     setupSimpleToggles();
     setupRecipeReload();
     setupTreeSearch();
@@ -3538,6 +3810,11 @@ window.addEventListener("DOMContentLoaded", async () => {
         renderConflictingRecipesReport();
     } catch (e) {
         console.error("Conflicting recipes report failed:", e);
+    }
+    try {
+        checkExistingDiscoveriesForColorology();
+    } catch (e) {
+        console.error("Colorology check failed:", e);
     }
     try {
         validateDiscoveryPlausibility();
