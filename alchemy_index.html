@@ -265,7 +265,18 @@
 
   #search::placeholder, #tree-search::placeholder { color: var(--text-muted); }
 
-  #elements, #dead-end-elements { display: block; margin-bottom: 20px; }
+  /* .panel-card (the shared container wrapping every tab) has generous
+     24px padding that suits prose text elsewhere, but on a narrow phone
+     it eats a meaningful chunk of width from the tile grid specifically
+     — about 13% of the available space. Breaking just this out of that
+     padding (down to a modest 8px instead) recovers that width without
+     touching .panel-card itself, which every other tab's text content
+     still benefits from at full padding. */
+  #elements, #dead-end-elements {
+    display: block;
+    margin: 0 -20px 20px;
+    padding: 0 4px;
+  }
 
   .element-tile-row {
     display: flex;
