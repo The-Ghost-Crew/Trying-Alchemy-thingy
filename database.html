@@ -417,22 +417,45 @@
 
   .detail-header img { width: 40px; height: 40px; }
 
-  .colorology-stamp {
+  .detail-stamps {
     margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .detail-stamp {
     width: 64px;
     height: 64px;
     flex-shrink: 0;
     border-radius: 50%;
-    border: 2px solid var(--gold-soft);
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
     transform: rotate(-6deg);
+  }
+
+  /* Without this, `hidden` on the element does nothing — display:flex
+     set directly above has the same specificity as the browser's own
+     [hidden] default and comes later in the cascade, so it silently wins
+     and the stamp renders anyway, empty, for every element regardless of
+     whether it actually matched anything. */
+  .detail-stamp[hidden] { display: none; }
+
+  .colorology-stamp {
+    border: 2px solid var(--gold-soft);
     box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.12);
   }
 
-  .colorology-stamp span {
+  .elements-stamp {
+    border: 2px solid var(--gold);
+    background: radial-gradient(circle at 35% 30%, rgba(201, 162, 39, 0.18), rgba(201, 162, 39, 0.05) 70%);
+    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.1);
+    color: var(--gold);
+  }
+
+  .detail-stamp span {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.58rem;
     text-transform: uppercase;
@@ -683,8 +706,13 @@
     <div class="detail-header">
       <img id="detail-icon" src="" alt="" hidden>
       <h2 id="detail-name"></h2>
-      <div id="detail-colorology-stamp" class="colorology-stamp" hidden>
-        <span>Colorology</span>
+      <div class="detail-stamps">
+        <div id="detail-elements-stamp" class="detail-stamp elements-stamp" hidden>
+          <span>Elements</span>
+        </div>
+        <div id="detail-colorology-stamp" class="detail-stamp colorology-stamp" hidden>
+          <span>Colorology</span>
+        </div>
       </div>
     </div>
     <p class="detail-meta" id="detail-tier"></p>
