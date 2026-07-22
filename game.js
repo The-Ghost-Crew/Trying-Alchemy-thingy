@@ -93,147 +93,17 @@ const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 // actual hex instead of the normal panel color. Lowercased keys, since
 // matching is always case-insensitive — "Water" and "water" are the same
 // lookup.
-const COLOROLOGY_COLORS = {
-    "red": "#ff0000",
-    "orange": "#ffa500",
-    "yellow": "#ffff00",
-    "green": "#00ff00",
-    "blue": "#0000ff",
-    "purple": "#800080",
-    "white": "#ffffff",
-    "black": "#000000",
-    "grey": "#808080",
-    "rose gold": "#b76e79",
-    "brown": "#653700",
-    "coral": "#ff7f50",
-    "smoke": "#bfc8c3",
-    "tide": "#beb4ab",
-    "googol": "#41c379",
-    "googolplex": "#93af3c",
-    "emerald": "#028f1e",
-    "beryl": "#71dcb8",
-    "gold": "#ffd700",
-    "plutonium": "#35fa00",
-    "heartbreaker": "#cc76a3",
-    "punch": "#dc4333",
-    "coconut": "#965a3e",
-    "water": "#d4f1f9",
-    "fire": "#8f3f2a",
-    "earth": "#a2653e",
-    "ocean": "#005493",
-    "maroon": "#800000",
-    "free speech red": "#c00000",
-    "mesopotamian dagger": "#804040",
-    "spooky tangerine": "#ff6b00",
-    "philippine orange": "#ff7300",
-    "inferno orange": "#ff4400",
-    "safety orange": "#ff6600",
-    "redяum": "#ff2200",
-    "boiling magma": "#ff3300",
-    "lucky orange": "#ff7700",
-    "burtuqali orange": "#ff6700",
-    "phaser beam": "#ff4d00",
-    "mystic red": "#ff5500",
-    "furious red": "#ff1100",
-    "ultimate orange": "#ff4200",
-    "ferrari red": "#ff2800",
-    "shining gold": "#ffd200",
-    "sunset strip": "#ffbc00",
-    "mandarin jelly": "#ff8800",
-    "king nacho": "#ffb800",
-    "amber": "#ffbf00",
-    "sunflower mango": "#ffb700",
-    "sun crete": "#ff8c00",
-    "imperial yellow": "#ffb200",
-    "nacho cheese": "#ffbb00",
-    "selective yellow": "#ffba00",
-    "yamabuki gold": "#ffa400",
-    "middle yellow": "#ffeb00",
-    "tweety": "#ffef00",
-    "lemon": "#fff700",
-    "dorn yellow": "#fff200",
-    "citrus splash": "#ffc400",
-    "lisbon lemon": "#fffb00",
-    "sailor moon": "#ffee00",
-    "teal": "#008080",
-    "hulk": "#008000",
-    "waystone green": "#00c000",
-    "blue party parrot": "#8080ff",
-    "navy blue": "#000080",
-    "hello darkness my old friend": "#802280",
-    "trendy pink": "#805d80",
-    "violettuce": "#882055",
-    "cupidity": "#406040",
-    "brandy punch": "#c07c40",
-    "tapestry red": "#c06960",
-    "silver": "#c0c0c0",
-    "lemon peel": "#ffed80",
-    "vivid tangerine": "#ff9980",
-    "apricot flower": "#ffbb80",
-    "orchid orange": "#ffa180",
-    "rich glow": "#ffe8a0",
-    "rich black": "#004040",
-    "spikey red": "#600000",
-    "dried mustard": "#804a00",
-    "calm cupid": "#c6b0b9",
-    "sunken gold": "#b29700",
-    "light relax": "#caddde",
-    "sahara gravel": "#dfc08a",
-    "sinag gold": "#ffd500",
-    "yellow flash": "#ffca00",
-    "sizzling sunrise": "#ffdb00",
-    "electric glow": "#ffd100",
-    "school bus": "#ffd800",
-    "terrapin": "#807f4a",
-    "orange rufous": "#c05200",
-    "mahogany": "#c04000",
-    "golden yellow": "#ffdf00",
-    "cyber yellow": "#ffd400",
-    "soviet gold": "#ffd900",
-    "mandarin peel": "#ff9f00",
-    "yellow tang": "#ffd300",
-    "summer sun": "#ffdc00",
-    "star": "#ffe500",
-    "graham crust": "#806240",
-    "spring fever": "#e5e3bf",
-    "warmth of teamwork": "#803020",
-    "sunny summer": "#ffc900",
-    "usc gold": "#ffcc00",
-    "wheel of dharma": "#ffcd00",
-    "orange peel": "#ffa000",
-    "super saiyan": "#ffdd00",
-    "fluorescent orange": "#ffcf00",
-    "demonic yellow": "#ffe700",
-    "fresh squeezed": "#ffad00",
-    "pico orange": "#ffa300",
-    "heat wave": "#ff7a00",
-    "barcelona orange": "#ff9500",
-    "molten core": "#ff5800",
-    "princeton orange": "#ff8f00",
-    "tangerine": "#ff9300",
-    "aerospace orange": "#ff4f00",
-    "ginger": "#b06500",
-    "coffee addiction": "#883300",
-    "chrome yellow": "#ffa700",
-    "cheese": "#ffa600",
-    "yellow rose": "#fff000",
-    "shade of amber": "#ff7e00",
-    "vitamin c": "#ff9900",
-    "ucla gold": "#ffb300",
-    "american orange": "#ff8b00",
-    "the new black": "#ff8400",
-    "orange juice": "#ff7f00",
-    "flash of orange": "#ffaa00",
-    "carolling candlelight": "#ffb850",
-    "lamplight": "#ffd140",
-    "vivid orange": "#ff5f00",
-    "cadmium yellow": "#fff600",
-    "spiced cashews": "#d3b080",
-    "red dit": "#ff4500",
-    "coquelicot": "#ff3800",
-    "maximum orange": "#ff5b00",
-    "honey crisp": "#e9c160",
-};
+//
+// Populated asynchronously from colorology-data.json (fetched during
+// init, see loadColorologyData below) rather than hardcoded here — that
+// file is regenerated on a schedule by a GitHub Action pulling from the
+// color-name-list package, which itself keeps growing over time (Color
+// Parrot alone adds roughly 20 new names a day). Starting empty and
+// filling in once the fetch resolves means colorology is a progressive
+// enhancement: the core game never waits on it, and nothing breaks if
+// the fetch fails — colorologyHex() below just always returns null until
+// data arrives, same as if nothing had ever matched.
+let COLOROLOGY_COLORS = {};
 
 const COLOROLOGY_SEEN_KEY = "alchemy_colorology_seen";
 const COLOROLOGY_DISABLED_KEY = "alchemy_colorology_disabled";
@@ -243,6 +113,30 @@ function loadColorologyPrefs() {
     try {
         colorologyDisabled = localStorage.getItem(COLOROLOGY_DISABLED_KEY) === "true";
     } catch (e) { /* private browsing or similar — default stands */ }
+}
+
+// Fire-and-forget on purpose — colorology is a progressive enhancement,
+// not core gameplay, so the rest of init never waits on this. If the
+// fetch fails (file not deployed yet, offline, etc.), COLOROLOGY_COLORS
+// just stays empty and colorologyHex() keeps returning null everywhere,
+// same as before this whole feature existed — nothing else needs to
+// know or care that it failed.
+async function loadColorologyData() {
+    try {
+        const res = await fetch("colorology-data.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const parsed = await res.json();
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("colorology-data.json did not contain the expected object shape");
+        }
+        COLOROLOGY_COLORS = parsed;
+        rebuildColorologySet();
+        setsDirty = true;
+        render(); // picks up newly-colorable tiles for anything already discovered
+        checkExistingDiscoveriesForColorology(); // the popup may now be relevant for the first time
+    } catch (e) {
+        console.warn("Could not load colorology data — continuing without it:", e);
+    }
 }
 
 function colorologyHex(element) {
@@ -1587,6 +1481,25 @@ function makeElementTile(element) {
     label.textContent = element;
     button.appendChild(label);
 
+    // A small corner stamp for each non-colorology set this element
+    // belongs to — colorology's own membership already shows through the
+    // tile's colored background above, so it's excluded here rather than
+    // doubling up. Something in BOTH sets (Gold, say) ends up with two
+    // genuinely distinct marks: the color, and this badge.
+    const memberSets = setsContainingElement(element).filter(s => s.id !== "colorology");
+    if (memberSets.length > 0) {
+        const badgeRow = document.createElement("span");
+        badgeRow.className = "set-badge-row";
+        memberSets.forEach(set => {
+            const badge = document.createElement("span");
+            badge.className = "set-badge";
+            badge.title = `Also in: ${set.name}`;
+            badge.textContent = set.stampLabel.charAt(0);
+            badgeRow.appendChild(badge);
+        });
+        button.appendChild(badgeRow);
+    }
+
     button.onclick = () => {
         // The run's clock starts on the player's first actual interaction,
         // not on the Start button — pressing Start then walking away for
@@ -2745,16 +2658,66 @@ const PERIODIC_TABLE_ITEMS = [
 ];
 
 const SETS = [
-    { id: "periodic-table", name: "Periodic Table", items: PERIODIC_TABLE_ITEMS },
-    // Auto-derived from COLOROLOGY_COLORS's own keys, not a separate
-    // hand-typed list — the color table is already the source of truth,
-    // so this just points at it instead of duplicating it.
-    { id: "colorology", name: "Colorology", items: Object.keys(COLOROLOGY_COLORS) },
+    { id: "periodic-table", name: "Periodic Table", stampLabel: "Elements", items: PERIODIC_TABLE_ITEMS },
+    // items starts empty and gets filled in by rebuildColorologySet()
+    // below, once colorology-data.json actually loads — Object.keys() on
+    // an empty COLOROLOGY_COLORS at definition time would otherwise
+    // permanently lock this set at zero items.
+    { id: "colorology", name: "Colorology", stampLabel: "Colorology", items: [] },
 ];
 
-function itemIsComplete(item) {
+// A lowercase-name -> set-list lookup, rebuilt whenever colorology data
+// changes — this is what lets a single tile show a badge for EVERY set
+// it belongs to (periodic-table AND colorology both, for something like
+// Gold), without re-scanning every set's item list per tile per render.
+let ELEMENT_SET_MEMBERSHIP = new Map();
+
+function rebuildElementSetMembership() {
+    ELEMENT_SET_MEMBERSHIP = new Map();
+    SETS.forEach(set => {
+        set.items.forEach(item => {
+            const names = Array.isArray(item) ? item : [item];
+            names.forEach(n => {
+                const key = n.toLowerCase();
+                if (!ELEMENT_SET_MEMBERSHIP.has(key)) ELEMENT_SET_MEMBERSHIP.set(key, []);
+                ELEMENT_SET_MEMBERSHIP.get(key).push(set);
+            });
+        });
+    });
+}
+rebuildElementSetMembership(); // once up front for periodic-table, which is already fully populated
+
+// Re-derives the Colorology set's item list from COLOROLOGY_COLORS's
+// current keys and rebuilds the membership index — called once
+// colorology-data.json actually loads, and safe to call again on any
+// future refresh.
+function rebuildColorologySet() {
+    const colorologySet = SETS.find(s => s.id === "colorology");
+    if (colorologySet) colorologySet.items = Object.keys(COLOROLOGY_COLORS);
+    rebuildElementSetMembership();
+}
+
+function setsContainingElement(element) {
+    return ELEMENT_SET_MEMBERSHIP.get(element.toLowerCase()) || [];
+}
+
+function buildLowercaseDiscoveredIndex() {
+    const index = new Map(); // lowercase name -> the actual, as-discovered casing
+    discovered.forEach(el => {
+        if (!index.has(el.toLowerCase())) index.set(el.toLowerCase(), el);
+    });
+    return index;
+}
+
+// Case-insensitive on purpose: "earth" and "Earth" are genuinely
+// different elements in this game (see recipe() above), so a recipes.js
+// contributor could easily spell a set-relevant result with different
+// capitalization than the set's own lowercase item list — "United
+// Nations" discovered exactly that way would otherwise silently never
+// register, despite genuinely being the same element.
+function itemIsComplete(item, lowercaseIndex) {
     const names = Array.isArray(item) ? item : [item];
-    return names.some(n => discovered.has(n));
+    return names.some(n => lowercaseIndex.has(n.toLowerCase()));
 }
 
 function itemPrimaryName(item) {
@@ -2768,15 +2731,17 @@ function renderSetsTab() {
     if (!container) return;
     container.innerHTML = "";
 
+    const lowercaseIndex = buildLowercaseDiscoveredIndex(); // once per render, not once per item
+
     SETS.forEach(set => {
         const card = document.createElement("div");
         card.className = "tree-card";
 
-        const completed = set.items.filter(itemIsComplete).length;
-        const isComplete = completed === set.items.length;
+        const completedItems = set.items.filter(item => itemIsComplete(item, lowercaseIndex));
+        const isComplete = completedItems.length === set.items.length;
 
         const heading = document.createElement("h3");
-        heading.textContent = `${set.name} — ${completed} / ${set.items.length}`;
+        heading.textContent = `${set.name} — ${completedItems.length} / ${set.items.length}`;
         card.appendChild(heading);
 
         // The stamp only ever appears once a set is genuinely finished —
@@ -2784,16 +2749,39 @@ function renderSetsTab() {
         if (isComplete) {
             const stamp = document.createElement("div");
             stamp.className = "set-stamp";
-            stamp.textContent = "Complete";
+            const stampText = document.createElement("span");
+            stampText.className = "set-stamp-label";
+            stampText.textContent = set.stampLabel;
+            stamp.appendChild(stampText);
             card.appendChild(stamp);
         }
 
         const grid = document.createElement("div");
         grid.className = "set-grid";
         set.items.forEach(item => {
+            const done = itemIsComplete(item, lowercaseIndex);
             const tile = document.createElement("span");
-            tile.className = "set-tile" + (itemIsComplete(item) ? " set-tile-done" : "");
+            tile.className = "set-tile" + (done ? " set-tile-done" : "");
             tile.textContent = itemPrimaryName(item);
+
+            // Colorology's own grid shows each discovered color at its
+            // real hex — the same treatment the main Elements tab uses,
+            // and the reason colorology doesn't also need a separate
+            // per-tile badge there: the color IS the stamp. Undiscovered
+            // items stay muted rather than spoiling the color early.
+            if (set.id === "colorology" && done && !colorologyDisabled) {
+                const hex = colorologyHex(itemPrimaryName(item));
+                if (hex) {
+                    tile.style.background = hex;
+                    const r = parseInt(hex.slice(1, 3), 16);
+                    const g = parseInt(hex.slice(3, 5), 16);
+                    const b = parseInt(hex.slice(5, 7), 16);
+                    const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+                    tile.style.color = luminance > 150 ? "#14151f" : "#f4f1e8";
+                    tile.style.borderColor = luminance > 150 ? "rgba(20,21,31,0.35)" : "rgba(244,241,232,0.35)";
+                }
+            }
+
             grid.appendChild(tile);
         });
         card.appendChild(grid);
@@ -3778,6 +3766,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
     loadAiNoticePreference();
     loadColorologyPrefs();
+    loadColorologyData(); // deliberately not awaited — fire-and-forget, see the function's own comment for why
     setupTabs();
     setupSearch();
     setupBackupControls();
