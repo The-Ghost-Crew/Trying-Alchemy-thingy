@@ -9,6 +9,42 @@ const BASE_ELEMENTS = ["air", "water", "earth", "fire"];
 // made-from/combines-into layout.
 const NOTHING_HAPPENS = "nothing happens";
 
+// Same list game.js's "Periodic Table" set uses — kept in sync manually
+// since the two files are otherwise independent, matching how the
+// colorology table itself is duplicated across both.
+const PERIODIC_TABLE_ITEMS = [
+    "hydrogen", "helium", "lithium", "beryllium", "boron", "carbon", "nitrogen",
+    "oxygen", "fluorine", "neon", "sodium", "magnesium", ["aluminium", "aluminum"],
+    "silicon", "phosphorus", ["sulfur", "sulphur"], "chlorine", "argon",
+    "potassium", "calcium", "scandium", "titanium", "vanadium", "chromium",
+    "manganese", "iron", "cobalt", "nickel", "copper", "zinc", "gallium",
+    "germanium", "arsenic", "selenium", "bromine", "krypton", "rubidium",
+    "strontium", "yttrium", "zirconium", "niobium", "molybdenum", "technetium",
+    "ruthenium", "rhodium", "palladium", "silver", "cadmium", "indium", "tin",
+    "antimony", "tellurium", "iodine", "xenon", ["caesium", "cesium"], "barium",
+    "lanthanum", "cerium", "praseodymium", "neodymium", "promethium",
+    "samarium", "europium", "gadolinium", "terbium", "dysprosium", "holmium",
+    "erbium", "thulium", "ytterbium", "lutetium", "hafnium", "tantalum",
+    ["tungsten", "wolfram"], "rhenium", "osmium", "iridium", "platinum",
+    "gold", "mercury", "thallium", "lead", "bismuth", "polonium", "astatine",
+    "radon", "francium", "radium", "actinium", "thorium", "protactinium",
+    "uranium", "neptunium", "plutonium", "americium", "curium", "berkelium",
+    "californium", "einsteinium", "fermium", "mendelevium", "nobelium",
+    "lawrencium", "rutherfordium", "dubnium", "seaborgium", "bohrium",
+    "hassium", "meitnerium", "darmstadtium", "roentgenium", "copernicium",
+    "nihonium", "flerovium", "moscovium", "livermorium", "tennessine",
+    "oganesson"
+];
+
+const PERIODIC_TABLE_LOOKUP = new Set();
+PERIODIC_TABLE_ITEMS.forEach(item => {
+    (Array.isArray(item) ? item : [item]).forEach(n => PERIODIC_TABLE_LOOKUP.add(n));
+});
+
+function isPeriodicTableElement(name) {
+    return PERIODIC_TABLE_LOOKUP.has(name.toLowerCase());
+}
+
 // ---------- Colorology ----------
 // Mirrors the same table in game.js — an element that happens to share
 // a name with a real, named color gets a stamp on its detail page here.
@@ -479,6 +515,9 @@ function renderDetail(name) {
     const icon = document.getElementById("detail-icon");
     tryLoadIcon(name, icon);
 
+    const elementsStamp = document.getElementById("detail-elements-stamp");
+    if (elementsStamp) elementsStamp.hidden = !isPeriodicTableElement(name);
+
     const stamp = document.getElementById("detail-colorology-stamp");
     if (stamp) {
         const hex = colorologyHex(name);
@@ -490,6 +529,9 @@ function renderDetail(name) {
             const b = parseInt(hex.slice(5, 7), 16);
             const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
             stamp.style.color = luminance > 150 ? "#14151f" : "#f4f1e8";
+        } else {
+            stamp.style.background = "";
+            stamp.style.color = "";
         }
     }
 
