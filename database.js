@@ -200,6 +200,8 @@ function showElement(name) {
 function showBrowse() {
     stopNothingMessages();
     document.body.classList.remove("void");
+    const results = document.getElementById("search-results");
+    if (results) results.innerHTML = "";
     location.hash = "";
     document.getElementById("browse-view").classList.remove("hidden");
     document.getElementById("detail-view").classList.remove("active");
@@ -410,6 +412,8 @@ function stopNothingMessages() {
 function renderDetail(name) {
     document.getElementById("browse-view").classList.add("hidden");
     document.getElementById("detail-view").classList.add("active");
+    const results = document.getElementById("search-results");
+    if (results) results.innerHTML = "";
 
     document.getElementById("detail-name").textContent = name;
 
@@ -572,11 +576,62 @@ function renderDetail(name) {
 
 function setupSearch() {
     const input = document.getElementById("db-search");
+    const results = document.getElementById("search-results");
 
     input.addEventListener("input", () => {
         browseSearchQueryRaw = input.value.trim();
         browseSearchQuery = browseSearchQueryRaw.toLowerCase();
-        if (!document.getElementById("browse-view").classList.contains("hidden")) renderBrowse();
+
+        const onBrowseView = !document.getElementById("browse-view").classList.contains("hidden");
+        if (onBrowseView) {
+            results.innerHTML = "";
+            renderBrowse();
+            return;
+        }
+
+        // On a detail page — there's no in-place list to filter here, so
+        // this is the one place the dropdown still earns its keep.
+        results.innerHTML = "";
+        const query = browseSearchQuery;
+        if (!query) return;
+
+        [...universe]
+            .filter(el => el !== NOTHING_HAPPENS && el.toLowerCase().includes(query))
+            .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+            .slice(0, 30)
+            .forEach(el => {
+                const item = document.createElement("button");
+                item.type = "button";
+                item.className = "search-result-item";
+                item.title = el;
+                const label = document.createElement("span");
+                label.className = "tile-label";
+                label.textContent = el;
+                item.appendChild(label);
+
+                const badge = document.createElement("span");
+                badge.className = "tier-badge";
+                const t = tierData.tier;
+                badge.textContent = BASE_ELEMENTS.includes(el)
+                    ? "start"
+                    : t.has(el)
+                    ? `tier ${t.get(el)}`
+                    : "unreachable";
+                item.appendChild(badge);
+
+                item.addEventListener("click", () => {
+                    input.value = "";
+                    browseSearchQuery = "";
+                    browseSearchQueryRaw = "";
+                    results.innerHTML = "";
+                    showElement(el);
+                });
+                results.appendChild(item);
+            });
+    });
+
+    document.addEventListener("click", e => {
+        if (!results.contains(e.target) && e.target !== input) results.innerHTML = "";
     });
 }
 
@@ -817,10 +872,12 @@ function refreshAfterRecipeChange() {
     const ideasResults = document.getElementById("ideas-results");
     if (ideasResults) ideasResults.innerHTML = "";
 
-    // A stale search box could reference an element that no longer
-    // exists in the newly loaded universe.
+    // A stale search box/dropdown could reference an element that no
+    // longer exists in the newly loaded universe.
     const searchInput = document.getElementById("db-search");
     if (searchInput) searchInput.value = "";
+    const searchResults = document.getElementById("search-results");
+    if (searchResults) searchResults.innerHTML = "";
     browseSearchQuery = "";
     browseSearchQueryRaw = "";
 
