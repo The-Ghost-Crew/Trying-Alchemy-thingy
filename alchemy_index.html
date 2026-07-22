@@ -267,7 +267,12 @@
 
   #elements, #dead-end-elements { display: block; margin-bottom: 20px; }
 
-  .element-tile-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .element-tile-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start; /* without this, every tile in a row stretches to match the tallest one — exactly what a wrapped long name would otherwise cause */
+  }
   .element-tile-row + .tier-group-heading { margin-top: 16px; }
 
   .tier-group-heading {
@@ -336,15 +341,19 @@
      shrink-to-fit basis calculations) is exactly the kind of thing that
      can differ between rendering engines, and this bug persisted across
      two flex-based attempts. A plain inline-block span with a fixed
-     max-width plus overflow/text-overflow/white-space is one of the
-     oldest, most consistently-implemented patterns in CSS — there is no
-     flex algorithm left in the picture to interpret differently. */
+     max-width is one of the oldest, most consistently-implemented
+     patterns in CSS — there is no flex algorithm left in the picture to
+     interpret differently.
+     Deliberately wraps rather than truncates — a long element name grows
+     the tile taller instead of getting cut off with an ellipsis, so the
+     full name is always visible without needing the title-attribute
+     tooltip as a fallback. overflow-wrap:anywhere is what makes this
+     work even for a single unbroken "word" with no natural spaces to
+     wrap at, like a 1600-digit factorial result. */
   .element-tile .tile-label {
     display: inline-block;
     max-width: 210px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
     vertical-align: middle;
   }
 
