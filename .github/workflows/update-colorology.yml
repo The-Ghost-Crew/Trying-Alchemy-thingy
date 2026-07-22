@@ -1,0 +1,49 @@
+name: Update colorology data
+
+on:
+  schedule:
+    # Weekly — color names don't need to be instantly fresh, and this
+    # keeps the job infrequent enough to not be noisy in the commit
+    # history, while still catching new additions from Color Parrot
+    # (which adds roughly 20 names a day) well before they'd matter.
+    - cron: "0 6 * * 1" # every Monday at 06:00 UTC
+  push:
+    # A newly-added element might coincidentally match a color name
+    # that's ALREADY in the color-name-list — this catches that promptly
+    # instead of waiting for the next scheduled run. No loop risk: this
+    # workflow only ever commits colorology-data.json, never recipes.js,
+    # so it can never re-trigger itself this way.
+    paths:
+      - "recipes.js"
+  workflow_dispatch: {} # manual "run now" from the Actions tab, for whenever a refresh is wanted outside the schedule
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    # Avoids a wasted run when this fires because sort-recipes.js's own
+    # bot commit touched recipes.js — a pure alphabetical re-sort never
+    # changes which elements exist, so there's nothing new to
+    # cross-reference. Manual runs and the weekly schedule are unaffected
+    # by this, since neither has github-actions[bot] as the actor.
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install color-name-list
+        run: npm install --no-save color-name-list
+
+      - name: Regenerate colorology-data.json
+        run: node .github/scripts/update-colorology.mjs
+
+      - name: Commit updated data, if anything changed
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "Update colorology data from color-name-list"
+          file_pattern: colorology-data.json
