@@ -15,150 +15,42 @@ const NOTHING_HAPPENS = "nothing happens";
 // Unlike the live game, there's no popup timing to worry about, so base
 // elements aren't excluded — water/fire/earth genuinely are colorology
 // matches, and this is a reference tool, not a play-through experience.
-const COLOROLOGY_COLORS = {
-    "red": "#ff0000",
-    "orange": "#ffa500",
-    "yellow": "#ffff00",
-    "green": "#00ff00",
-    "blue": "#0000ff",
-    "purple": "#800080",
-    "white": "#ffffff",
-    "black": "#000000",
-    "grey": "#808080",
-    "rose gold": "#b76e79",
-    "brown": "#653700",
-    "coral": "#ff7f50",
-    "smoke": "#bfc8c3",
-    "tide": "#beb4ab",
-    "googol": "#41c379",
-    "googolplex": "#93af3c",
-    "emerald": "#028f1e",
-    "beryl": "#71dcb8",
-    "gold": "#ffd700",
-    "plutonium": "#35fa00",
-    "heartbreaker": "#cc76a3",
-    "punch": "#dc4333",
-    "coconut": "#965a3e",
-    "water": "#d4f1f9",
-    "fire": "#8f3f2a",
-    "earth": "#a2653e",
-    "ocean": "#005493",
-    "maroon": "#800000",
-    "free speech red": "#c00000",
-    "mesopotamian dagger": "#804040",
-    "spooky tangerine": "#ff6b00",
-    "philippine orange": "#ff7300",
-    "inferno orange": "#ff4400",
-    "safety orange": "#ff6600",
-    "redяum": "#ff2200",
-    "boiling magma": "#ff3300",
-    "lucky orange": "#ff7700",
-    "burtuqali orange": "#ff6700",
-    "phaser beam": "#ff4d00",
-    "mystic red": "#ff5500",
-    "furious red": "#ff1100",
-    "ultimate orange": "#ff4200",
-    "ferrari red": "#ff2800",
-    "shining gold": "#ffd200",
-    "sunset strip": "#ffbc00",
-    "mandarin jelly": "#ff8800",
-    "king nacho": "#ffb800",
-    "amber": "#ffbf00",
-    "sunflower mango": "#ffb700",
-    "sun crete": "#ff8c00",
-    "imperial yellow": "#ffb200",
-    "nacho cheese": "#ffbb00",
-    "selective yellow": "#ffba00",
-    "yamabuki gold": "#ffa400",
-    "middle yellow": "#ffeb00",
-    "tweety": "#ffef00",
-    "lemon": "#fff700",
-    "dorn yellow": "#fff200",
-    "citrus splash": "#ffc400",
-    "lisbon lemon": "#fffb00",
-    "sailor moon": "#ffee00",
-    "teal": "#008080",
-    "hulk": "#008000",
-    "waystone green": "#00c000",
-    "blue party parrot": "#8080ff",
-    "navy blue": "#000080",
-    "hello darkness my old friend": "#802280",
-    "trendy pink": "#805d80",
-    "violettuce": "#882055",
-    "cupidity": "#406040",
-    "brandy punch": "#c07c40",
-    "tapestry red": "#c06960",
-    "silver": "#c0c0c0",
-    "lemon peel": "#ffed80",
-    "vivid tangerine": "#ff9980",
-    "apricot flower": "#ffbb80",
-    "orchid orange": "#ffa180",
-    "rich glow": "#ffe8a0",
-    "rich black": "#004040",
-    "spikey red": "#600000",
-    "dried mustard": "#804a00",
-    "calm cupid": "#c6b0b9",
-    "sunken gold": "#b29700",
-    "light relax": "#caddde",
-    "sahara gravel": "#dfc08a",
-    "sinag gold": "#ffd500",
-    "yellow flash": "#ffca00",
-    "sizzling sunrise": "#ffdb00",
-    "electric glow": "#ffd100",
-    "school bus": "#ffd800",
-    "terrapin": "#807f4a",
-    "orange rufous": "#c05200",
-    "mahogany": "#c04000",
-    "golden yellow": "#ffdf00",
-    "cyber yellow": "#ffd400",
-    "soviet gold": "#ffd900",
-    "mandarin peel": "#ff9f00",
-    "yellow tang": "#ffd300",
-    "summer sun": "#ffdc00",
-    "star": "#ffe500",
-    "graham crust": "#806240",
-    "spring fever": "#e5e3bf",
-    "warmth of teamwork": "#803020",
-    "sunny summer": "#ffc900",
-    "usc gold": "#ffcc00",
-    "wheel of dharma": "#ffcd00",
-    "orange peel": "#ffa000",
-    "super saiyan": "#ffdd00",
-    "fluorescent orange": "#ffcf00",
-    "demonic yellow": "#ffe700",
-    "fresh squeezed": "#ffad00",
-    "pico orange": "#ffa300",
-    "heat wave": "#ff7a00",
-    "barcelona orange": "#ff9500",
-    "molten core": "#ff5800",
-    "princeton orange": "#ff8f00",
-    "tangerine": "#ff9300",
-    "aerospace orange": "#ff4f00",
-    "ginger": "#b06500",
-    "coffee addiction": "#883300",
-    "chrome yellow": "#ffa700",
-    "cheese": "#ffa600",
-    "yellow rose": "#fff000",
-    "shade of amber": "#ff7e00",
-    "vitamin c": "#ff9900",
-    "ucla gold": "#ffb300",
-    "american orange": "#ff8b00",
-    "the new black": "#ff8400",
-    "orange juice": "#ff7f00",
-    "flash of orange": "#ffaa00",
-    "carolling candlelight": "#ffb850",
-    "lamplight": "#ffd140",
-    "vivid orange": "#ff5f00",
-    "cadmium yellow": "#fff600",
-    "spiced cashews": "#d3b080",
-    "red dit": "#ff4500",
-    "coquelicot": "#ff3800",
-    "maximum orange": "#ff5b00",
-    "honey crisp": "#e9c160",
-};
+//
+// Populated asynchronously from colorology-data.json (see
+// loadColorologyData below) rather than hardcoded here — that file is
+// regenerated on a schedule by a GitHub Action pulling from the
+// color-name-list package, which keeps growing over time on its own.
+let COLOROLOGY_COLORS = {};
 
 function colorologyHex(element) {
     return COLOROLOGY_COLORS[element.toLowerCase()] || null;
+}
+
+// Fire-and-forget, same reasoning as the live game: this is a reference
+// tool's cosmetic extra, not something worth ever blocking on. If the
+// fetch fails, COLOROLOGY_COLORS just stays empty and colorologyHex()
+// keeps returning null, same as before this feature existed.
+async function loadColorologyData() {
+    try {
+        const res = await fetch("colorology-data.json", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const parsed = await res.json();
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("colorology-data.json did not contain the expected object shape");
+        }
+        COLOROLOGY_COLORS = parsed;
+        // Refresh whatever's actually on screen so newly-colorable tiles
+        // show up without needing a manual reload.
+        if (!document.getElementById("browse-view").classList.contains("hidden")) {
+            renderBrowse();
+        } else {
+            const currentHash = decodeURIComponent(location.hash.slice(1));
+            const currentName = currentHash === "nothing_happens" ? NOTHING_HAPPENS : currentHash;
+            if (currentName && universe.has(currentName)) renderDetail(currentName);
+        }
+    } catch (e) {
+        console.warn("Could not load colorology data — continuing without it:", e);
+    }
 }
 
 
@@ -519,6 +411,20 @@ function makeElementTile(el) {
     btn.type = "button";
     btn.className = "element-tile";
     if (el === NOTHING_HAPPENS) btn.classList.add("nothing-happens-tile");
+
+    const hex = colorologyHex(el);
+    if (hex) {
+        btn.classList.add("colorology-tile");
+        btn.style.background = hex;
+        // Same perceived-luminance check used in alchemy_index.html —
+        // picks readable text for whichever real color lands here.
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+        btn.style.color = luminance > 150 ? "#14151f" : "#f4f1e8";
+        btn.style.borderColor = luminance > 150 ? "rgba(20,21,31,0.35)" : "rgba(244,241,232,0.35)";
+    }
 
     const img = document.createElement("img");
     img.hidden = true;
@@ -1193,6 +1099,8 @@ onReady(async () => {
     const initialRaw = decodeURIComponent(location.hash.slice(1));
     const initial = initialRaw === "nothing_happens" ? NOTHING_HAPPENS : initialRaw;
     if (initial && universe.has(initial)) renderDetail(initial);
+
+    loadColorologyData(); // deliberately not awaited — see the function's own comment for why
 });
 
 })();
