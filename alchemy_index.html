@@ -1069,6 +1069,64 @@
   }
 
   #sr-history-list { max-height: 260px; overflow-y: auto; }
+
+  #colorology-popup {
+    position: fixed;
+    inset: 0;
+    z-index: 210;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 21, 31, 0.88);
+    padding: 20px;
+  }
+
+  #colorology-popup[hidden] { display: none; }
+
+  .colorology-popup-card {
+    max-width: 420px;
+    background: var(--panel);
+    border: 1px solid var(--gold-soft);
+    border-radius: 10px;
+    padding: 24px 22px;
+  }
+
+  .colorology-popup-card h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.6rem;
+    color: var(--gold);
+    margin: 0 0 12px;
+  }
+
+  .colorology-popup-card p {
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--text);
+    margin: 0 0 14px;
+  }
+
+  .colorology-popup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+  #colorology-okay-btn, #colorology-disable-btn {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    border-radius: 20px;
+    padding: 9px 18px;
+    cursor: pointer;
+  }
+
+  #colorology-okay-btn {
+    background: var(--gold);
+    color: #14151f;
+    border: 1px solid var(--gold);
+  }
+
+  #colorology-disable-btn {
+    background: none;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
 </style>
 </head>
 <body>
@@ -1317,6 +1375,12 @@
       </div>
 
       <div class="about-block">
+        <h2>Colorology</h2>
+        <p>A handful of elements happen to share a name with a real, named color — when that happens, that element's tile background becomes the color's actual hex code instead of the usual panel color.</p>
+        <button id="colorology-toggle" class="sound-toggle" type="button">Colors: On</button>
+      </div>
+
+      <div class="about-block">
         <h2>Recipe data</h2>
         <p>Every page load fetches <code>recipes.js</code> fresh, bypassing the browser cache entirely. If you just updated it and don't see new elements, use this instead of guessing whether it's stale or genuinely stuck — it tells you which.</p>
         <div class="backup-actions">
@@ -1501,6 +1565,19 @@
 </script>
 <div id="sr-countdown-overlay" hidden>
   <span id="sr-countdown-text"></span>
+</div>
+
+<div id="colorology-popup" hidden>
+  <div class="colorology-popup-card">
+    <h2>Colorology</h2>
+    <p id="colorology-popup-body"></p>
+    <p>Some elements in this game happen to share a name with a real, named color. Colorology is something I think is genuinely cool, so when that overlap happens, the element's background becomes that color's actual hex code — that's your sign you've found one.</p>
+    <p>Don't want to see it? Turn off the colored backgrounds below, or later in the About tab.</p>
+    <div class="colorology-popup-actions">
+      <button id="colorology-okay-btn" type="button">Okay</button>
+      <button id="colorology-disable-btn" type="button">Turn off colors</button>
+    </div>
+  </div>
 </div>
 
 </body>
