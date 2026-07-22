@@ -410,11 +410,35 @@
   .detail-header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 14px;
     margin-bottom: 4px;
   }
 
   .detail-header img { width: 40px; height: 40px; }
+
+  .colorology-stamp {
+    margin-left: auto;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid var(--gold-soft);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transform: rotate(-6deg);
+    box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.12);
+  }
+
+  .colorology-stamp span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.58rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    line-height: 1.15;
+  }
 
   .detail-header h2 {
     font-family: 'Cormorant Garamond', serif;
@@ -659,6 +683,9 @@
     <div class="detail-header">
       <img id="detail-icon" src="" alt="" hidden>
       <h2 id="detail-name"></h2>
+      <div id="detail-colorology-stamp" class="colorology-stamp" hidden>
+        <span>Colorology</span>
+      </div>
     </div>
     <p class="detail-meta" id="detail-tier"></p>
 
