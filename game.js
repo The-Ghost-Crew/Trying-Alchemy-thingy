@@ -2745,7 +2745,11 @@ const PERIODIC_TABLE_ITEMS = [
 ];
 
 const SETS = [
-    { id: "periodic-table", name: "Periodic Table", items: PERIODIC_TABLE_ITEMS }
+    { id: "periodic-table", name: "Periodic Table", items: PERIODIC_TABLE_ITEMS },
+    // Auto-derived from COLOROLOGY_COLORS's own keys, not a separate
+    // hand-typed list — the color table is already the source of truth,
+    // so this just points at it instead of duplicating it.
+    { id: "colorology", name: "Colorology", items: Object.keys(COLOROLOGY_COLORS) },
 ];
 
 function itemIsComplete(item) {
@@ -2769,9 +2773,20 @@ function renderSetsTab() {
         card.className = "tree-card";
 
         const completed = set.items.filter(itemIsComplete).length;
+        const isComplete = completed === set.items.length;
+
         const heading = document.createElement("h3");
         heading.textContent = `${set.name} — ${completed} / ${set.items.length}`;
         card.appendChild(heading);
+
+        // The stamp only ever appears once a set is genuinely finished —
+        // it's meant to feel earned, not like routine UI chrome.
+        if (isComplete) {
+            const stamp = document.createElement("div");
+            stamp.className = "set-stamp";
+            stamp.textContent = "Complete";
+            card.appendChild(stamp);
+        }
 
         const grid = document.createElement("div");
         grid.className = "set-grid";
