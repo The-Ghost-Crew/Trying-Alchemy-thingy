@@ -278,6 +278,13 @@
     padding: 0 4px;
   }
 
+  /* Without this, the dead-ends collapse toggle sets .hidden correctly
+     but nothing visually happens — display:block above is an ID
+     selector, which always beats the browser's own [hidden] styling
+     (an ID's specificity outranks an attribute selector's, regardless of
+     which rule comes later in the stylesheet). */
+  #elements[hidden], #dead-end-elements[hidden] { display: none; }
+
   .element-tile-row {
     display: flex;
     flex-wrap: wrap;
@@ -361,9 +368,13 @@
      tooltip as a fallback. overflow-wrap:anywhere is what makes this
      work even for a single unbroken "word" with no natural spaces to
      wrap at, like a 1600-digit factorial result. */
+  /* No max-width of its own — .element-tile above already caps the
+     whole button at 100% of the row's available width, so this just
+     wraps within whatever that ends up being. A fixed narrower cap here
+     was forcing long names into an unnecessarily tall, narrow column
+     (a "text wall") instead of using the width that's actually available. */
   .element-tile .tile-label {
     display: inline-block;
-    max-width: 210px;
     overflow-wrap: anywhere;
     vertical-align: middle;
   }
