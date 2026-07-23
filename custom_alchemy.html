@@ -232,7 +232,26 @@
 
   #search::placeholder, #tree-search::placeholder { color: var(--text-muted); }
 
-  #elements, #dead-end-elements { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  #elements, #dead-end-elements { display: block; margin-bottom: 20px; }
+  #elements[hidden], #dead-end-elements[hidden] { display: none; }
+
+  .element-tile-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .element-tile-row + .tier-group-heading { margin-top: 16px; }
+
+  .tier-group-heading {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 8px;
+  }
+
 
   .section-label {
     font-family: 'IBM Plex Mono', monospace;
@@ -737,6 +756,7 @@ recipe("air", "water", "water", "superMist");</pre>
       <div class="sort-controls">
         <button class="sort-toggle active" data-sort="alpha" type="button">A–Z</button>
         <button class="sort-toggle" data-sort="recent" type="button">Recent</button>
+        <button class="sort-toggle" data-sort="tier" type="button">By Tier</button>
       </div>
 
       <input id="search" type="text" placeholder="Search your discovered elements…">
@@ -791,6 +811,12 @@ recipe("air", "water", "water", "superMist");</pre>
         <h2>Hint Mode</h2>
         <p>Outlines any element that can combine with something already in your inventory right now, and moves those to the top of the Elements list. Meant to smooth out the grind, not to spoil what the result actually is.</p>
         <button id="hint-mode-toggle" class="sound-toggle" type="button">Hint Mode: Off</button>
+      </div>
+
+      <div class="about-block">
+        <h2>Modded Highlighting</h2>
+        <p>Elements introduced by your uploaded file (not the base game, if you merged the two) show up in purple, so it's easy to tell which is which at a glance.</p>
+        <button id="modded-highlight-toggle" class="sound-toggle" type="button">Highlighting: On</button>
       </div>
 
       <div class="about-group-label">Information</div>
