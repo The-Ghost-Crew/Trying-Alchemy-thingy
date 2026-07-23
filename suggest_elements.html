@@ -109,6 +109,7 @@
   .picker-list {
     display: flex;
     flex-wrap: wrap;
+    align-items: flex-start;
     gap: 6px;
     max-height: 220px;
     overflow-y: auto;
@@ -119,6 +120,8 @@
   }
 
   .element-tile {
+    max-width: 100%;
+    overflow-wrap: anywhere;
     font-family: 'Inter', sans-serif;
     font-size: 0.82rem;
     background: var(--ink-bg);
@@ -140,6 +143,7 @@
     font-size: 1rem;
     color: var(--parchment);
     text-align: center;
+    overflow-wrap: anywhere;
     margin: 4px 0 12px;
   }
 
@@ -147,6 +151,7 @@
     color: var(--red);
     font-size: 0.85rem;
     text-align: center;
+    overflow-wrap: anywhere;
     margin: 0 0 12px;
   }
 
@@ -216,6 +221,12 @@
     margin-bottom: 8px;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.85rem;
+  }
+
+  .queue-row-text {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .queue-remove-btn {
