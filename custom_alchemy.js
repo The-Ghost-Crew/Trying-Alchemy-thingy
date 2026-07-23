@@ -19,6 +19,40 @@ let configuredMinArity = 2;
 let configuredMaxArity = 2;
 let startingElements = ["air", "water", "fire", "earth"];
 const moddedElements = new Set(); // introduced by the uploaded file specifically, not the base game
+
+const MODDED_HIGHLIGHT_KEY = "alchemy_modded_highlight_disabled";
+let moddedHighlightDisabled = false;
+
+function loadModdedHighlightPref() {
+    try {
+        moddedHighlightDisabled = localStorage.getItem(MODDED_HIGHLIGHT_KEY) === "true";
+    } catch (e) {
+        console.warn("Could not load modded-highlighting preference:", e);
+    }
+}
+
+function setupModdedHighlightToggle() {
+    const btn = document.getElementById("modded-highlight-toggle");
+    if (!btn) return;
+
+    const updateLabel = () => {
+        btn.textContent = moddedHighlightDisabled ? "Highlighting: Off" : "Highlighting: On";
+        btn.classList.toggle("muted", moddedHighlightDisabled);
+    };
+    updateLabel();
+
+    btn.addEventListener("click", () => {
+        moddedHighlightDisabled = !moddedHighlightDisabled;
+        try {
+            localStorage.setItem(MODDED_HIGHLIGHT_KEY, String(moddedHighlightDisabled));
+        } catch (e) {
+            console.warn("Could not save modded-highlighting preference:", e);
+        }
+        updateLabel();
+        render(); // re-apply or strip the purple styling immediately
+        treeDirty = true; // same invalidation the tree tab already uses elsewhere
+    });
+}
 let loadSummaryText = "";
 
 // ---------- Recipe data (generalized to N ingredients) ----------
@@ -523,7 +557,7 @@ function makeElementTile(element) {
     if (hintModeEnabled && hasActionableCombo(element)) button.classList.add("hintable");
     if (greenHintPair && greenHintPair.includes(element)) button.classList.add("hint-pair");
     if (element === lastDiscovered) button.classList.add("just-found");
-    if (moddedElements.has(element)) button.classList.add("modded");
+    if (!moddedHighlightDisabled && moddedElements.has(element)) button.classList.add("modded");
 
     button.appendChild(document.createTextNode(element));
 
@@ -658,7 +692,7 @@ let sortMode = "alpha";
 function loadSortModePreference() {
     try {
         const saved = localStorage.getItem(SORT_MODE_KEY);
-        if (saved === "alpha" || saved === "recent") sortMode = saved;
+        if (saved === "alpha" || saved === "recent" || saved === "tier") sortMode = saved;
     } catch (e) {
         console.warn("Could not load sort mode preference:", e);
     }
@@ -793,10 +827,60 @@ function render() {
         active = [...greenPair, ...hintable, ...rest];
     }
 
-    active.forEach(el => activeBox.appendChild(makeElementTile(el)));
-    dead.forEach(el => deadBox.appendChild(makeElementTile(el)));
+    if (sortMode === "tier") {
+        renderTierGrouped(activeBox, active);
+        renderTierGrouped(deadBox, dead);
+    } else {
+        renderFlatRow(activeBox, active);
+        renderFlatRow(deadBox, dead);
+    }
 
     if (deadSection) deadSection.hidden = dead.length === 0;
+}
+
+// A single wrapping row of tiles — the flat modes (alpha/recent), and
+// the building block inside each tier group below.
+function renderFlatRow(container, list) {
+    const row = document.createElement("div");
+    row.className = "element-tile-row";
+    list.forEach(el => row.appendChild(makeElementTile(el)));
+    container.appendChild(row);
+}
+
+// Groups a list into tier headings + rows, reusing computeDisplayDepths
+// (the same depth computation the Family Tree tab already relies on,
+// already N-ary adapted and already aware of custom starting elements)
+// rather than building separate tier machinery just for this.
+function renderTierGrouped(container, list) {
+    const depths = computeDisplayDepths(discovered);
+
+    const groups = new Map();
+    const other = [];
+    list.forEach(el => {
+        if (depths.has(el)) {
+            const t = depths.get(el);
+            if (!groups.has(t)) groups.set(t, []);
+            groups.get(t).push(el);
+        } else {
+            other.push(el);
+        }
+    });
+
+    [...groups.keys()].sort((a, b) => a - b).forEach(t => {
+        const heading = document.createElement("p");
+        heading.className = "tier-group-heading";
+        heading.textContent = t === 0 ? "Starting elements" : `Tier ${t}`;
+        container.appendChild(heading);
+        renderFlatRow(container, groups.get(t));
+    });
+
+    if (other.length > 0) {
+        const heading = document.createElement("p");
+        heading.className = "tier-group-heading";
+        heading.textContent = "Other";
+        container.appendChild(heading);
+        renderFlatRow(container, other);
+    }
 }
 
 // ---------- Family Tree list (copied from game.js, N-ary adapted) ----------
@@ -829,7 +913,7 @@ function buildDetailFragment(element, depths) {
     const frag = document.createDocumentFragment();
 
     const heading = document.createElement("h3");
-    if (moddedElements.has(element)) heading.className = "modded-name";
+    if (!moddedHighlightDisabled && moddedElements.has(element)) heading.className = "modded-name";
     heading.appendChild(document.createTextNode(element));
     frag.appendChild(heading);
 
@@ -1285,6 +1369,7 @@ onReady(() => {
         ["loadMusicPreference", loadMusicPreference],
         ["loadSortModePreference", loadSortModePreference],
         ["loadDeadEndCollapsePreference", loadDeadEndCollapsePreference],
+        ["loadModdedHighlightPref", loadModdedHighlightPref],
         ["setupStartingElementsEditor", setupStartingElementsEditor],
         ["setupIncludeBaseToggle", setupIncludeBaseToggle],
         ["setupFileUploadControl", setupFileUploadControl],
@@ -1296,6 +1381,7 @@ onReady(() => {
         ["setupMusicToggle", setupMusicToggle],
         ["setupMusicVolumeSlider", setupMusicVolumeSlider],
         ["setupHintModeToggle", setupHintModeToggle],
+        ["setupModdedHighlightToggle", setupModdedHighlightToggle],
         ["setupSortToggle", setupSortToggle],
         ["setupDeadEndToggle", setupDeadEndToggle],
         ["setupTreeSearch", setupTreeSearch],
